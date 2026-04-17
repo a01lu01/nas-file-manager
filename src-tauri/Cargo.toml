@@ -41,3 +41,6 @@ axum = "0.8.4"
 tower-http = { version = "0.6.8", features = ["cors", "fs"] }
 uuid = { version = "1.20.0", features = ["v4"] }
 tower = { version = "0.5.3", features = ["util"] }
+image = { version = "0.25.6", features = ["jpeg", "png", "webp"] }
+sha2 = "0.10.9"
+hex = "0.4.3"

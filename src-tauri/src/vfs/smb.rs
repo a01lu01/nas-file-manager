@@ -187,6 +187,10 @@ impl Storage for SmbStorage {
         Ok(())
     }
 
+    fn get_local_path(&self, path: &str) -> Option<std::path::PathBuf> {
+        Some(self.resolve_local_path(path))
+    }
+
     async fn stream_file(&self, path: &str, req_headers: axum::http::HeaderMap) -> Result<axum::response::Response, VfsError> {
         use axum::response::IntoResponse;
         use tower_http::services::ServeFile;

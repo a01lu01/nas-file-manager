@@ -439,21 +439,11 @@ export default function Browser() {
     return () => ro.disconnect();
   }, []);
 
-  const [renderLimit, setRenderLimit] = useState(50);
+  const [renderLimit, setRenderLimit] = useState(displayedFiles.length);
 
   useEffect(() => {
-    setRenderLimit(50);
-  }, [currentPath, viewMode]);
-
-  useEffect(() => {
-    if (viewMode !== "grid") return;
-    if (renderLimit < displayedFiles.length) {
-      const timer = setTimeout(() => {
-        setRenderLimit((prev) => Math.min(prev + 30, displayedFiles.length));
-      }, 50); // 每 50ms 渲染 30 个项目
-      return () => clearTimeout(timer);
-    }
-  }, [renderLimit, displayedFiles.length, viewMode]);
+    setRenderLimit(displayedFiles.length);
+  }, [displayedFiles.length]);
 
   // 删除多余的 preloadImages 逻辑，交给浏览器自带的网络队列和渐进式渲染
   const loadDirectory = React.useCallback(async (path: string) => {
@@ -529,7 +519,7 @@ export default function Browser() {
     if (!activeConnection || !proxyPort) return null;
     const encodedPath = encodeURIComponent(file.path);
     const encodedId = encodeURIComponent(activeConnection.id);
-    return `http://127.0.0.1:${proxyPort}/stream?id=${encodedId}&path=${encodedPath}`;
+    return `http://127.0.0.1:${proxyPort}/stream?id=${encodedId}&path=${encodedPath}&thumb=true`;
   };
 
   const handlePrevImage = async (e: React.MouseEvent) => {

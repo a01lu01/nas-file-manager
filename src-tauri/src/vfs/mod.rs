@@ -55,6 +55,11 @@ pub trait Storage: Send + Sync {
     
     /// 流式读取文件 (用于视频播放、图片预览等)
     async fn stream_file(&self, path: &str, req_headers: axum::http::HeaderMap) -> Result<axum::response::Response, VfsError>;
+
+    /// 返回本地路径（如果有的话，方便直接读取生成缩略图）
+    fn get_local_path(&self, _path: &str) -> Option<std::path::PathBuf> {
+        None
+    }
 }
 
 pub mod webdav;
