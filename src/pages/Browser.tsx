@@ -336,6 +336,85 @@ function CustomVideoPlayer({ url }: { url: string }) {
   );
 }
 
+// 全局预加载队列管理器，保证切换文件夹时能清空旧队列
+let preloaderQueue: (() => void)[] = [];
+let preloaderRunning = false;
+
+const clearPreloaderQueue = () => {
+  preloaderQueue = [];
+};
+
+const runPreloader = async () => {
+  if (preloaderRunning) return;
+  preloaderRunning = true;
+  while (preloaderQueue.length > 0) {
+    const fn = preloaderQueue.shift();
+    if (fn) {
+      fn();
+      // 降低预加载并发压力
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+  preloaderRunning = false;
+};
+
+const ThumbnailImage = React.memo(({ file, thumbUrl }: { file: FileItem; thumbUrl: string | null }) => {
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!thumbUrl || shouldLoad) return;
+
+    let isMounted = true;
+
+    // 1. 优先加载可见区域的图片
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && isMounted) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" } // 提前预加载
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    // 2. 将图片推入后台顺序预加载队列
+    preloaderQueue.push(() => {
+      if (isMounted && !shouldLoad) {
+        setShouldLoad(true);
+      }
+    });
+    runPreloader();
+
+    return () => {
+      isMounted = false;
+      observer.disconnect();
+    };
+  }, [thumbUrl, shouldLoad]);
+
+  return (
+    <div ref={ref} className="w-full h-full flex items-center justify-center">
+      {shouldLoad && thumbUrl ? (
+        <img
+          src={thumbUrl}
+          alt={file.name}
+          className="w-full h-full object-cover transition-opacity duration-200"
+          decoding="async"
+          style={{ backgroundColor: "transparent" }}
+        />
+      ) : (
+        <div className="w-full h-full bg-surface/20 flex items-center justify-center">
+          <FileImage size={40} className="text-muted-foreground/30" />
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function Browser() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -439,15 +518,12 @@ export default function Browser() {
     return () => ro.disconnect();
   }, []);
 
-  const [renderLimit, setRenderLimit] = useState(displayedFiles.length);
-
-  useEffect(() => {
-    setRenderLimit(displayedFiles.length);
-  }, [displayedFiles.length]);
-
   // 删除多余的 preloadImages 逻辑，交给浏览器自带的网络队列和渐进式渲染
   const loadDirectory = React.useCallback(async (path: string) => {
     if (!activeConnection) return;
+    
+    // 清空后台预加载队列，避免在旧文件夹的图片上浪费网络
+    clearPreloaderQueue();
     
     setLoading(true);
     setError(null);
@@ -1105,15 +1181,6 @@ export default function Browser() {
             ) : viewMode === "grid" ? (
               <div className="grid gap-4 content-start" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
                 {displayedFiles.map((file, idx) => {
-                  if (idx >= renderLimit) {
-                    return (
-                      <div key={file.path} className="flex flex-col items-center px-1">
-                        <div className="w-full aspect-square bg-surface/40 rounded-lg mb-2 animate-pulse shadow-sm"></div>
-                        <div className="h-3 w-2/3 bg-surface/40 rounded animate-pulse mt-1"></div>
-                      </div>
-                    );
-                  }
-
                   const ext = file.name.split(".").pop()?.toLowerCase() || "";
                   const isImage = !file.is_dir && ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
                   const isVideo = !file.is_dir && ["mp4", "webm", "mov", "mkv", "avi", "m4v"].includes(ext);
@@ -1133,17 +1200,7 @@ export default function Browser() {
                     >
                       <div className="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-primary/50 transition-colors relative mb-2 shadow-sm flex items-center justify-center">
                         {isImage ? (
-                          thumbUrl ? (
-                            <img
-                              src={thumbUrl}
-                              alt={file.name}
-                              className="w-full h-full object-cover"
-                              decoding="async"
-                              style={{ backgroundColor: "transparent" }}
-                            />
-                          ) : (
-                            <FileImage size={40} className="text-muted-foreground/60" />
-                          )
+                          <ThumbnailImage file={file} thumbUrl={thumbUrl} />
                         ) : isVideo ? (
                                   <>
                                     <div className="w-full h-full bg-surface-elevated flex items-center justify-center">
