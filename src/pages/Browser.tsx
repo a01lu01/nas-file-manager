@@ -336,85 +336,6 @@ function CustomVideoPlayer({ url }: { url: string }) {
   );
 }
 
-// 全局预加载队列管理器，保证切换文件夹时能清空旧队列
-let preloaderQueue: (() => void)[] = [];
-let preloaderRunning = false;
-
-const clearPreloaderQueue = () => {
-  preloaderQueue = [];
-};
-
-const runPreloader = async () => {
-  if (preloaderRunning) return;
-  preloaderRunning = true;
-  while (preloaderQueue.length > 0) {
-    const fn = preloaderQueue.shift();
-    if (fn) {
-      fn();
-      // 降低预加载并发压力
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-  }
-  preloaderRunning = false;
-};
-
-const ThumbnailImage = React.memo(({ file, thumbUrl }: { file: FileItem; thumbUrl: string | null }) => {
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!thumbUrl || shouldLoad) return;
-
-    let isMounted = true;
-
-    // 1. 优先加载可见区域的图片
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && isMounted) {
-          setShouldLoad(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "300px" } // 提前预加载
-    );
-
-    if (ref.current) {
-      observer.observe(ref.current);
-    }
-
-    // 2. 将图片推入后台顺序预加载队列
-    preloaderQueue.push(() => {
-      if (isMounted && !shouldLoad) {
-        setShouldLoad(true);
-      }
-    });
-    runPreloader();
-
-    return () => {
-      isMounted = false;
-      observer.disconnect();
-    };
-  }, [thumbUrl, shouldLoad]);
-
-  return (
-    <div ref={ref} className="w-full h-full flex items-center justify-center">
-      {shouldLoad && thumbUrl ? (
-        <img
-          src={thumbUrl}
-          alt={file.name}
-          className="w-full h-full object-cover transition-opacity duration-200"
-          decoding="async"
-          style={{ backgroundColor: "transparent" }}
-        />
-      ) : (
-        <div className="w-full h-full bg-surface/20 flex items-center justify-center">
-          <FileImage size={40} className="text-muted-foreground/30" />
-        </div>
-      )}
-    </div>
-  );
-});
-
 export default function Browser() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -518,12 +439,95 @@ export default function Browser() {
     return () => ro.disconnect();
   }, []);
 
-  // 删除多余的 preloadImages 逻辑，交给浏览器自带的网络队列和渐进式渲染
+  const gridRows = React.useMemo(() => {
+    if (viewMode !== "grid") return [] as FileItem[][];
+    const rows: FileItem[][] = [];
+    for (let i = 0; i < displayedFiles.length; i += gridCols) {
+      rows.push(displayedFiles.slice(i, i + gridCols));
+    }
+    return rows;
+  }, [viewMode, displayedFiles, gridCols]);
+
+  const gridRowHeight = React.useMemo(() => {
+    const gap = 16; // gap-4 (16px)
+    const padding = 32; // p-4 (16px) * 2
+    const contentW = Math.max(0, scrollElWidth - padding);
+    
+    // tileW: 每列的宽度 = (总宽 - 所有间距) / 列数
+    const tileW = contentW > 0 ? (contentW - gap * (gridCols - 1)) / gridCols : 160;
+    
+    // rowHeight = tileW (图片是正方形 aspect-square) + 文字高度(大约 20px) + 下边距(mb-2 即 8px) + 行间距(gap-4 即 16px)
+    return Math.max(160, Math.ceil(tileW + 20 + 8 + gap));
+  }, [scrollElWidth, gridCols]);
+
+  const gridVirtualizer = useVirtualizer({
+    count: viewMode === "grid" ? gridRows.length : 0,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => gridRowHeight,
+    overscan: 30, // 增加预渲染行数，使得回滚时不那么容易触发白屏
+  });
+
+  useEffect(() => {
+    gridVirtualizer.measure();
+  }, [gridVirtualizer, gridRowHeight, gridCols]);
+  // --- Sequential Preloader (符合用户要求的“进入文件夹后序列加载缓存”) ---
+  useEffect(() => {
+    if (viewMode !== "grid" || !activeConnection || !proxyPort) return;
+
+    let cancelled = false;
+    
+    // 只取还没被缓存的图片进行预加载
+    const imagesToPreload = getImagesInCurrentDir().filter(file => {
+      const url = getThumbUrl(file);
+      if (!url) return false;
+      // 简单判断一下是否已经加载过了，其实依靠浏览器的 Cache-Control 也行，
+      // 但加上这个可以避免不必要的 img.src 赋值触发
+      return true; 
+    });
+
+    const preloadImages = async () => {
+      for (const file of imagesToPreload) {
+        if (cancelled) break;
+        const url = getThumbUrl(file);
+        if (!url) continue;
+        
+        // 尝试加载图片到浏览器内存缓存中
+        try {
+          await new Promise<void>((resolve) => {
+            const img = new Image();
+            // 加上 fetchpriority 告诉浏览器这是后台低优先级预加载
+            img.fetchPriority = "low";
+            img.src = url;
+            
+            // 如果图片瞬间加载完成（比如已经在本地磁盘缓存里了），不需要强行等待 20ms
+            if (img.complete) {
+              resolve();
+              return;
+            }
+            
+            img.onload = () => resolve();
+            img.onerror = () => resolve(); // 失败也继续
+          });
+        } catch (e) {
+          // ignore
+        }
+        
+        // 缩短延时，加快预加载速度
+        if (!cancelled) {
+          await new Promise(r => setTimeout(r, 10));
+        }
+      }
+    };
+
+    preloadImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, activeConnection?.id, currentPath, proxyPort]);
+
   const loadDirectory = React.useCallback(async (path: string) => {
     if (!activeConnection) return;
-    
-    // 清空后台预加载队列，避免在旧文件夹的图片上浪费网络
-    clearPreloaderQueue();
     
     setLoading(true);
     setError(null);
@@ -1179,29 +1183,54 @@ export default function Browser() {
                 <p className="text-sm mt-1">{searchQuery.trim() ? "Try a different search term" : "No files or directories found"}</p>
               </div>
             ) : viewMode === "grid" ? (
-              <div className="grid gap-4 content-start" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
-                {displayedFiles.map((file, idx) => {
-                  const ext = file.name.split(".").pop()?.toLowerCase() || "";
-                  const isImage = !file.is_dir && ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
-                  const isVideo = !file.is_dir && ["mp4", "webm", "mov", "mkv", "avi", "m4v"].includes(ext);
-                  const isAudio = !file.is_dir && ["mp3", "wav", "flac", "m4a", "aac", "opus", "ogg"].includes(ext);
-                  const isArchive = !file.is_dir && ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"].includes(ext);
-                  const isDoc = !file.is_dir && ["txt", "md", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(ext);
-                  const thumbUrl = isImage ? getThumbUrl(file) : null;
+              <div style={{ height: gridVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+                {gridVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const row = gridRows[virtualRow.index] || [];
                   return (
                     <div
-                      key={file.path}
-                      onClick={(e) => handleItemClick(e, file)}
-                      onPointerDown={(e) => handleItemPointerDown(e, file)}
-                      onPointerUp={handleItemPointerUpOrLeave}
-                      onPointerCancel={handleItemPointerUpOrLeave}
-                      onPointerLeave={handleItemPointerUpOrLeave}
-                      className="group cursor-pointer flex flex-col items-center select-none relative"
+                      key={virtualRow.key}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: `${virtualRow.size}px`,
+                        transform: `translate3d(0, ${virtualRow.start}px, 0)`,
+                        willChange: "transform"
+                      }}
                     >
-                      <div className="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-primary/50 transition-colors relative mb-2 shadow-sm flex items-center justify-center">
-                        {isImage ? (
-                          <ThumbnailImage file={file} thumbUrl={thumbUrl} />
-                        ) : isVideo ? (
+                      <div className="grid gap-4 content-start" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
+                        {row.map((file) => {
+                          const ext = file.name.split(".").pop()?.toLowerCase() || "";
+                          const isImage = !file.is_dir && ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
+                          const isVideo = !file.is_dir && ["mp4", "webm", "mov", "mkv", "avi", "m4v"].includes(ext);
+                          const isAudio = !file.is_dir && ["mp3", "wav", "flac", "m4a", "aac", "opus", "ogg"].includes(ext);
+                          const isArchive = !file.is_dir && ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"].includes(ext);
+                          const isDoc = !file.is_dir && ["txt", "md", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(ext);
+                          const thumbUrl = isImage ? getThumbUrl(file) : null;
+                          return (
+                            <div
+                              key={file.path}
+                              onClick={(e) => handleItemClick(e, file)}
+                              onPointerDown={(e) => handleItemPointerDown(e, file)}
+                              onPointerUp={handleItemPointerUpOrLeave}
+                              onPointerCancel={handleItemPointerUpOrLeave}
+                              onPointerLeave={handleItemPointerUpOrLeave}
+                              className="group cursor-pointer flex flex-col items-center select-none relative"
+                            >
+                              <div className="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-primary/50 transition-colors relative mb-2 shadow-sm flex items-center justify-center">
+                                {isImage ? (
+                                  thumbUrl ? (
+                                    <img
+                              src={thumbUrl}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                              style={{ backgroundColor: "transparent" }}
+                            />
+                                  ) : (
+                                    <FileImage size={40} className="text-muted-foreground/60" />
+                                  )
+                                ) : isVideo ? (
                                   <>
                                     <div className="w-full h-full bg-surface-elevated flex items-center justify-center">
                                       <FileVideo size={44} className="text-muted-foreground/40" />
@@ -1298,6 +1327,10 @@ export default function Browser() {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-0.5">
