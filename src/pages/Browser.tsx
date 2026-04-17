@@ -439,7 +439,23 @@ export default function Browser() {
     return () => ro.disconnect();
   }, []);
 
-  // 删除多余的 preloadImages 逻辑，交给浏览器自带的网络队列和 content-visibility 机制
+  const [renderLimit, setRenderLimit] = useState(50);
+
+  useEffect(() => {
+    setRenderLimit(50);
+  }, [currentPath, viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "grid") return;
+    if (renderLimit < displayedFiles.length) {
+      const timer = setTimeout(() => {
+        setRenderLimit((prev) => Math.min(prev + 30, displayedFiles.length));
+      }, 50); // 每 50ms 渲染 30 个项目
+      return () => clearTimeout(timer);
+    }
+  }, [renderLimit, displayedFiles.length, viewMode]);
+
+  // 删除多余的 preloadImages 逻辑，交给浏览器自带的网络队列和渐进式渲染
   const loadDirectory = React.useCallback(async (path: string) => {
     if (!activeConnection) return;
     
@@ -1098,7 +1114,16 @@ export default function Browser() {
               </div>
             ) : viewMode === "grid" ? (
               <div className="grid gap-4 content-start" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
-                {displayedFiles.map((file) => {
+                {displayedFiles.map((file, idx) => {
+                  if (idx >= renderLimit) {
+                    return (
+                      <div key={file.path} className="flex flex-col items-center px-1">
+                        <div className="w-full aspect-square bg-surface/40 rounded-lg mb-2 animate-pulse shadow-sm"></div>
+                        <div className="h-3 w-2/3 bg-surface/40 rounded animate-pulse mt-1"></div>
+                      </div>
+                    );
+                  }
+
                   const ext = file.name.split(".").pop()?.toLowerCase() || "";
                   const isImage = !file.is_dir && ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
                   const isVideo = !file.is_dir && ["mp4", "webm", "mov", "mkv", "avi", "m4v"].includes(ext);
@@ -1115,7 +1140,6 @@ export default function Browser() {
                       onPointerCancel={handleItemPointerUpOrLeave}
                       onPointerLeave={handleItemPointerUpOrLeave}
                       className="group cursor-pointer flex flex-col items-center select-none relative"
-                      style={{ contentVisibility: 'auto', containIntrinsicSize: '180px' }}
                     >
                       <div className="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-primary/50 transition-colors relative mb-2 shadow-sm flex items-center justify-center">
                         {isImage ? (
