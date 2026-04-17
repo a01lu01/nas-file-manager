@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>NAS File Manager – Grid View Mockups</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            background: '#0e0f11',
+            panel: '#151618',
+            surface: '#1c1d21',
+            border: '#282a2f',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-background text-gray-300 p-8 font-sans">
+  <h1 class="text-2xl text-white font-semibold mb-2">网格视图 (Grid View) 小图模式</h1>
+  <p class="text-gray-400 mb-8">用于确认小图展示比例与文件名排版</p>
+
+  <div class="bg-panel border border-border rounded-xl p-6 max-w-4xl">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-white font-medium">响应式方块 (Object-Cover)</h2>
+    </div>
+    
+    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+      <!-- Item 1: 竖图被裁切成正方形 -->
+      <div class="group cursor-pointer flex flex-col items-center">
+        <div class="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-blue-500/50 transition-colors relative mb-2 shadow-sm">
+          <img src="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=400&h=400&fit=crop" class="w-full h-full object-cover" />
+          <!-- 右下角显示大小 -->
+          <div class="absolute bottom-1 right-1 bg-black/60 backdrop-blur text-[10px] px-1 rounded text-white/90 font-mono">1.2 MB</div>
+        </div>
+        <!-- 文件名多行截断或单行截断，剧中对齐 -->
+        <div class="text-[13px] text-white truncate w-full text-center px-1" title="vacation_photo_2026.jpg">vacation_photo...</div>
+      </div>
+
+      <!-- Item 2: 文件夹 -->
+      <div class="group cursor-pointer flex flex-col items-center">
+        <div class="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-blue-500/50 transition-colors relative mb-2 flex items-center justify-center shadow-sm">
+          <svg class="w-12 h-12 text-blue-400 opacity-80" viewBox="0 0 24 24" fill="currentColor"><path d="M4 20q-.825 0-1.412-.587Q2 18.825 2 18V6q0-.825.588-1.412Q3.175 4 4 4h6l2 2h8q.825 0 1.413.588Q22 7.175 22 8v10q0 .825-.587 1.413Q20.825 20 20 20Z"/></svg>
+        </div>
+        <div class="text-[13px] text-white truncate w-full text-center px-1" title="2026_Documents">2026_Documents</div>
+      </div>
+
+      <!-- Item 3: 视频文件 (带播放图标/时长) -->
+      <div class="group cursor-pointer flex flex-col items-center">
+        <div class="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-blue-500/50 transition-colors relative mb-2 shadow-sm">
+          <img src="https://images.unsplash.com/photo-1682687982501-1e58f813f22b?w=400&h=400&fit=crop" class="w-full h-full object-cover" />
+          <div class="absolute inset-0 flex items-center justify-center">
+            <div class="w-8 h-8 rounded-full bg-black/40 backdrop-blur flex items-center justify-center text-white">
+              <svg class="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
+          <!-- 左上角可以放时长 (如果API支持)，或者左下角放大小 -->
+          <div class="absolute bottom-1 right-1 bg-black/60 backdrop-blur text-[10px] px-1 rounded text-white/90 font-mono">45 MB</div>
+        </div>
+        <div class="text-[13px] text-white truncate w-full text-center px-1" title="demo_video.mp4">demo_video.mp4</div>
+      </div>
+
+      <!-- Item 4: 普通文件 (如 JSON) -->
+      <div class="group cursor-pointer flex flex-col items-center">
+        <div class="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-blue-500/50 transition-colors relative mb-2 flex items-center justify-center shadow-sm">
+          <svg class="w-10 h-10 text-gray-400 opacity-80" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+          <div class="absolute bottom-1 right-1 bg-black/60 backdrop-blur text-[10px] px-1 rounded text-white/90 font-mono">15 KB</div>
+        </div>
+        <div class="text-[13px] text-white truncate w-full text-center px-1" title="config.json">config.json</div>
+      </div>
+      
+      <!-- Item 5: 另一个图片 -->
+      <div class="group cursor-pointer flex flex-col items-center">
+        <div class="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-blue-500/50 transition-colors relative mb-2 shadow-sm">
+          <img src="https://images.unsplash.com/photo-1682686581854-5e71f58e7e3f?w=400&h=400&fit=crop" class="w-full h-full object-cover" />
+          <div class="absolute bottom-1 right-1 bg-black/60 backdrop-blur text-[10px] px-1 rounded text-white/90 font-mono">2.4 MB</div>
+        </div>
+        <div class="text-[13px] text-white truncate w-full text-center px-1" title="landscape.jpg">landscape.jpg</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

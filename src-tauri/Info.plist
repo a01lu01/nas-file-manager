@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>用于保存你从 NAS 下载的文件到“下载”目录。</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>用于保存你从 NAS 下载的文件到“文稿”目录。</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>用于保存你从 NAS 下载的文件到“桌面”目录。</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>用于保存你从 NAS 下载的文件到外接磁盘。</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>用于访问网络卷（例如挂载的网络硬盘/共享目录）。</string>
+</dict>
+</plist>
+

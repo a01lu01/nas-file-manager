@@ -1,0 +1,155 @@
+@import "@fontsource-variable/inter";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 220 10% 10%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 220 10% 10%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 10% 10%;
+    
+    --primary: 235 86% 65%; /* Brand Indigo #5e6ad2 */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 220 10% 96%;
+    --secondary-foreground: 220 10% 10%;
+    
+    --muted: 220 10% 96%;
+    --muted-foreground: 220 10% 40%;
+    
+    --accent: 235 86% 65%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 10% 90%;
+    --input: 220 10% 90%;
+    --ring: 235 86% 65%;
+
+    --radius: 0.5rem;
+    
+    /* Linear Specific Custom Variables - Light Mode */
+    --panel: 0 0% 100%;
+    --surface-elevated: 0 0% 98%;
+    --border-subtle: rgba(0,0,0,0.05);
+    --border-standard: rgba(0,0,0,0.08);
+  }
+
+  .dark {
+    /* Linear Design System - Dark Mode Native */
+    --background: 210 11% 4%; /* #08090a Marketing Black */
+    --foreground: 180 20% 98%; /* #f7f8f8 Primary White */
+    
+    --card: 210 6% 11%; /* #191a1b Level 3 Surface */
+    --card-foreground: 180 20% 98%;
+    
+    --popover: 210 6% 11%;
+    --popover-foreground: 180 20% 98%;
+    
+    --primary: 235 60% 60%; /* #5e6ad2 Brand Indigo */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 240 5% 16%; /* #28282c Secondary Surface */
+    --secondary-foreground: 220 10% 85%; /* #d0d6e0 Silver Gray */
+    
+    --muted: 240 5% 10%; /* #18191a */
+    --muted-foreground: 220 5% 55%; /* #8a8f98 Tertiary Gray */
+    
+    --accent: 235 60% 60%; /* #5e6ad2 */
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 180 20% 98%;
+
+    --border: 240 5% 15%; /* #23252a */
+    --input: 240 5% 15%;
+    --ring: 235 60% 60%;
+    
+    /* Linear Specific Custom Variables - Dark Mode */
+    --panel: 210 6% 6%; /* #0f1011 Panel Dark */
+    --surface-elevated: 210 6% 11%; /* #191a1b */
+    --border-subtle: rgba(255,255,255,0.05);
+    --border-standard: rgba(255,255,255,0.08);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv01", "ss03";
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Typography utilities for Linear's tracking */
+  h1, h2, h3, .tracking-tight-xl {
+    letter-spacing: -0.04em;
+  }
+  
+  .tracking-tight-2xl {
+    letter-spacing: -0.06em;
+  }
+
+  /* Linear's signature ghost button background */
+  .bg-ghost {
+    background: rgba(255,255,255,0.02);
+  }
+  
+  .dark .bg-ghost {
+    background: rgba(255,255,255,0.02);
+  }
+  
+  /* Disable drag on elements that shouldn't be dragged */
+  img, a {
+    -webkit-user-drag: none;
+  }
+}
+
+/* Tauri specific classes */
+.titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar-button {
+  -webkit-app-region: no-drag;
+}
+
+/* 隐藏原生 video 播放器的全屏渐变遮罩 (针对 WebKit 浏览器如 Chrome/Safari) */
+video.video-no-shadow::-webkit-media-controls-enclosure {
+  background: transparent !important;
+}
+
+/* 强制隐藏默认控制面板后面的阴影层 */
+video.video-no-shadow::-webkit-media-controls-panel {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  /* 确保 panel 不带任何背景和滤镜 */
+  backdrop-filter: none !important;
+}
+
+/* 移除之前针对单独按钮加的背景，因为这可能会在不同版本的 WebKit 中导致意外的连片显示 */
+video.video-no-shadow::-webkit-media-controls-play-button,
+video.video-no-shadow::-webkit-media-controls-timeline,
+video.video-no-shadow::-webkit-media-controls-current-time-display,
+video.video-no-shadow::-webkit-media-controls-time-remaining-display,
+video.video-no-shadow::-webkit-media-controls-mute-button,
+video.video-no-shadow::-webkit-media-controls-volume-slider,
+video.video-no-shadow::-webkit-media-controls-fullscreen-button {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+}
