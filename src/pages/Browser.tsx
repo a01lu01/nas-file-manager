@@ -470,61 +470,6 @@ export default function Browser() {
   useEffect(() => {
     gridVirtualizer.measure();
   }, [gridVirtualizer, gridRowHeight, gridCols]);
-  // --- Sequential Preloader (符合用户要求的“进入文件夹后序列加载缓存”) ---
-  useEffect(() => {
-    if (viewMode !== "grid" || !activeConnection || !proxyPort) return;
-
-    let cancelled = false;
-    
-    // 只取还没被缓存的图片进行预加载
-    const imagesToPreload = getImagesInCurrentDir().filter(file => {
-      const url = getThumbUrl(file);
-      if (!url) return false;
-      // 简单判断一下是否已经加载过了，其实依靠浏览器的 Cache-Control 也行，
-      // 但加上这个可以避免不必要的 img.src 赋值触发
-      return true; 
-    });
-
-    const preloadImages = async () => {
-      for (const file of imagesToPreload) {
-        if (cancelled) break;
-        const url = getThumbUrl(file);
-        if (!url) continue;
-        
-        // 尝试加载图片到浏览器内存缓存中
-        try {
-          await new Promise<void>((resolve) => {
-            const img = new Image();
-            // 加上 fetchpriority 告诉浏览器这是后台低优先级预加载
-            img.fetchPriority = "low";
-            img.src = url;
-            
-            // 如果图片瞬间加载完成（比如已经在本地磁盘缓存里了），不需要强行等待 20ms
-            if (img.complete) {
-              resolve();
-              return;
-            }
-            
-            img.onload = () => resolve();
-            img.onerror = () => resolve(); // 失败也继续
-          });
-        } catch (e) {
-          // ignore
-        }
-        
-        // 缩短延时，加快预加载速度
-        if (!cancelled) {
-          await new Promise(r => setTimeout(r, 10));
-        }
-      }
-    };
-
-    preloadImages();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [viewMode, activeConnection?.id, currentPath, proxyPort]);
 
   const loadDirectory = React.useCallback(async (path: string) => {
     if (!activeConnection) return;
