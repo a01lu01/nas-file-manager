@@ -40,11 +40,13 @@ async fn stream_handler(
     let headers = req.headers().clone();
     
     if query.thumb.unwrap_or(false) {
+        println!(">>> [前端请求] 正在请求缩略图: {}", query.path);
         if let Some(local_path) = storage.get_local_path(&query.path) {
             let thumb_path = get_thumbnail_path(&query.id, &query.path);
             
             // 如果缩略图已存在，直接返回
             if thumb_path.exists() {
+                println!("    <<< [缓存命中] 直接返回磁盘缩略图: {}", query.path);
                 let service = tower_http::services::ServeFile::new(&thumb_path);
                 use tower::ServiceExt;
                 let mut req_empty = axum::http::Request::builder()
