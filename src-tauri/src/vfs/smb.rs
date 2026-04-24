@@ -127,11 +127,21 @@ impl SmbStorage {
 
     fn resolve_local_path(&self, path: &str) -> std::path::PathBuf {
         let mut local_path = std::path::PathBuf::from(&self.mount_point);
+        
         if let Some(base) = &self.base_path {
-            local_path.push(base.trim_matches('/'));
+            for component in base.split('/') {
+                if !component.is_empty() {
+                    local_path.push(component);
+                }
+            }
         }
+        
         if !path.is_empty() && path != "/" {
-            local_path.push(path.trim_start_matches('/'));
+            for component in path.trim_start_matches('/').split('/') {
+                if !component.is_empty() {
+                    local_path.push(component);
+                }
+            }
         }
         local_path
     }
