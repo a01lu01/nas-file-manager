@@ -336,6 +336,122 @@ function CustomVideoPlayer({ url }: { url: string }) {
   );
 }
 
+interface LightboxProps {
+  file: FileItem;
+  url: string;
+  allImages: FileItem[];
+  onClose: () => void;
+  onNavigate: (newFile: FileItem) => void;
+}
+
+function Lightbox({ file, url, allImages, onClose, onNavigate }: LightboxProps) {
+  const currentIndex = allImages.findIndex(img => img.path === file.path);
+  const totalCount = allImages.length;
+  const [touchStart, setTouchStart] = useState<{ x: number, y: number } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        onNavigate(allImages[currentIndex - 1]);
+      } else if (e.key === 'ArrowRight' && currentIndex < totalCount - 1) {
+        onNavigate(allImages[currentIndex + 1]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, totalCount, allImages, onClose, onNavigate]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+
+    const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    const deltaX = touchEnd.x - touchStart.x;
+    const deltaY = touchEnd.y - touchStart.y;
+
+    // If horizontal swipe distance > 50px and greater than vertical swipe
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+      if (deltaX > 0 && currentIndex > 0) {
+        // Swipe right -> previous image
+        onNavigate(allImages[currentIndex - 1]);
+      } else if (deltaX < 0 && currentIndex < totalCount - 1) {
+        // Swipe left -> next image
+        onNavigate(allImages[currentIndex + 1]);
+      }
+    }
+    setTouchStart(null);
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center touch-none select-none"
+      onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Top Bar */}
+      <div 
+        className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10 bg-gradient-to-b from-black/60 to-transparent"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-white/90 text-[13px] font-medium border border-white/10">
+          {currentIndex !== -1 ? `${currentIndex + 1} / ${totalCount}` : ""}
+        </div>
+        <button 
+          onClick={onClose}
+          className="p-2 bg-black/40 backdrop-blur-md rounded-full text-white/90 hover:text-white hover:bg-white/20 transition-colors border border-white/10"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* Image Display */}
+      <div className="w-full h-full flex items-center justify-center p-4 md:p-8">
+        <img
+          src={url}
+          alt={file.name}
+          className="max-w-full max-h-full object-contain drop-shadow-2xl"
+          onClick={e => e.stopPropagation()}
+          draggable={false}
+        />
+      </div>
+
+      {/* Desktop Navigation Arrows */}
+      {currentIndex > 0 && (
+        <button
+          className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/60 backdrop-blur-md rounded-full text-white/70 hover:text-white transition-all hidden md:flex border border-white/10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNavigate(allImages[currentIndex - 1]);
+          }}
+        >
+          <ChevronLeft size={28} />
+        </button>
+      )}
+
+      {currentIndex < totalCount - 1 && (
+        <button
+          className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/60 backdrop-blur-md rounded-full text-white/70 hover:text-white transition-all hidden md:flex border border-white/10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNavigate(allImages[currentIndex + 1]);
+          }}
+        >
+          <ChevronRight size={28} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Browser() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1739,7 +1855,23 @@ export default function Browser() {
           </div>
         </div>
       )}
-      {previewFile && (
+      {previewFile && previewFile.type === "image" && (
+  <Lightbox
+    file={previewFile.item}
+    url={previewFile.url}
+    allImages={displayedFiles.filter(f => {
+      const ext = f.name.split('.').pop()?.toLowerCase() || '';
+      return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+    })}
+    onClose={() => setPreviewFile(null)}
+    onNavigate={async (newFile) => {
+      if (!activeConnection) return;
+      const newUrl = await getProxyUrl(activeConnection.id, newFile.path);
+      setPreviewFile({ item: newFile, url: newUrl, type: "image" });
+    }}
+  />
+)}
+{previewFile && previewFile.type !== "image" && (
         <div
           className="fixed inset-0 z-[100] flex flex-col"
         >
