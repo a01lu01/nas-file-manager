@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { useConnectionStore } from "@/lib/store";
 import { listDirectory, mkdirItem, deleteItem, renameItem, FileItem, startDownload, getProxyUrl, getProxyPort } from "@/lib/tauri-api";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, ChevronRight, HardDrive, Search, LayoutGrid, List, ArrowLeft, MoreHorizontal, LogOut, Sun, Moon, Loader2, ArrowUpDown, FolderPlus, Trash2, Pencil, Download, X, ChevronLeft, Play, Pause, Volume2, VolumeX, Maximize, Menu } from "lucide-react";
+import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, ChevronRight, HardDrive, Search, LayoutGrid, List, ArrowLeft, MoreHorizontal, LogOut, Sun, Moon, Loader2, ArrowUpDown, FolderPlus, Trash2, Pencil, Download, X, ChevronLeft, Play, Pause, Volume2, VolumeX, Maximize, Menu, CheckCircle2, Circle, AlertCircle } from "lucide-react";
 import { useTheme } from "next-themes";
-import { save } from "@tauri-apps/plugin-dialog";
+import { save, open } from "@tauri-apps/plugin-dialog";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -375,6 +375,33 @@ export default function Browser() {
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
   const loadSeqRef = useRef(0);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+
+  const toggleSelection = (path: string) => {
+    setSelectedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+        if (next.size === 0) setIsSelectionMode(false);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedPaths(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const selectAll = () => {
+    const allPaths = new Set(displayedFiles.map(f => f.path));
+    setSelectedPaths(allPaths);
+  };
   const [gridCols, setGridCols] = useState(3);
   const [scrollElWidth, setScrollElWidth] = useState(0);
   const breadcrumbs = currentPath.split("/").filter(Boolean);
@@ -771,10 +798,110 @@ export default function Browser() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    if (!activeConnection) return;
+    setIsBatchDeleting(true);
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    // Convert Set to Array to iterate
+    const pathsToDelete = Array.from(selectedPaths);
+    
+    for (const path of pathsToDelete) {
+      try {
+        await deleteItem(activeConnection.id, path);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to delete ${path}:`, err);
+        failCount++;
+      }
+    }
+    
+    if (failCount === 0) {
+      toast.success(`Successfully deleted ${successCount} items`);
+    } else {
+      toast.warning(`Deleted ${successCount} items, failed to delete ${failCount} items`);
+    }
+    
+    setIsBatchDeleting(false);
+    setIsBatchDeleteOpen(false);
+    clearSelection();
+    await loadDirectory(currentPath);
+  };
+
+  const handleBatchDownload = async () => {
+    if (!activeConnection) return;
+    
+    // Filter out directories, we only download files for now
+    const filesToDownload = Array.from(selectedPaths).map(p => 
+      displayedFiles.find(f => f.path === p)
+    ).filter((f): f is FileItem => f !== undefined && !f.is_dir);
+    
+    if (filesToDownload.length === 0) {
+      toast.info("No downloadable files selected");
+      return;
+    }
+    
+    try {
+      // Ask user for a directory to save all files
+      const selectedDir = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: lastSaveDir || undefined,
+        title: "Select Directory to Save Files"
+      });
+      
+      if (!selectedDir || typeof selectedDir !== 'string') return;
+      
+      setLastSaveDir(selectedDir);
+      
+      let startedCount = 0;
+      
+      for (const file of filesToDownload) {
+        const targetPath = `${selectedDir.replace(/\/$/, "")}/${file.name}`;
+        
+        upsertTask({
+          id: `${activeConnection.id}-${file.path}`,
+          filename: file.name,
+          connectionId: activeConnection.id,
+          remotePath: file.path,
+          localPath: targetPath,
+          status: "pending",
+          progress: 0,
+          totalSize: file.size,
+          downloadedSize: 0,
+          type: "download",
+        });
+        
+        startDownload(activeConnection.id, file.path, targetPath).catch(err => {
+          console.error(`Failed to start download for ${file.name}:`, err);
+        });
+        
+        startedCount++;
+      }
+      
+      toast.success(`Started downloading ${startedCount} files`);
+      clearSelection();
+      
+    } catch (err) {
+      console.error("Batch download error:", err);
+      toast.error("Failed to start batch download");
+    }
+  };
+
   const handleItemClick = async (e: React.MouseEvent, item: FileItem) => {
     // 如果刚刚触发了长按菜单，则忽略随之而来的点击事件，防止误进文件夹
     if (isLongPressTriggered) {
       setIsLongPressTriggered(false);
+      return;
+    }
+    
+    if (isSelectionMode || e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isSelectionMode) setIsSelectionMode(true);
+      toggleSelection(item.path);
       return;
     }
     
@@ -1018,14 +1145,16 @@ export default function Browser() {
                     <ArrowUpDown size={14} className={sortDir === "asc" ? "" : "rotate-180"} />
                   </button>
                 </div>
-                <button
-                  onClick={handleNewFolder}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
-                  title="New folder"
-                >
-                  <FolderPlus size={14} />
-                  <span className="max-w-[92px] truncate">New Folder</span>
-                </button>
+                {!isSelectionMode && (
+                  <button
+                    onClick={handleNewFolder}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
+                    title="New folder"
+                  >
+                    <FolderPlus size={14} />
+                    <span className="max-w-[92px] truncate">New Folder</span>
+                  </button>
+                )}
                 <div className="flex bg-ghost border border-border-standard rounded-md p-0.5">
                   <button 
                     onClick={() => {
@@ -1152,28 +1281,32 @@ export default function Browser() {
                           const isAudio = !file.is_dir && ["mp3", "wav", "flac", "m4a", "aac", "opus", "ogg"].includes(ext);
                           const isArchive = !file.is_dir && ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"].includes(ext);
                           const isDoc = !file.is_dir && ["txt", "md", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(ext);
-                          const thumbUrl = isImage ? getThumbUrl(file) : null;
-                          return (
+                  const thumbUrl = isImage ? getThumbUrl(file) : null;
+                  const isSelected = selectedPaths.has(file.path);
+                  
+                  return (
+                    <div
+                      key={file.path}
+                      onClick={(e) => handleItemClick(e, file)}
+                      onPointerDown={(e) => handleItemPointerDown(e, file)}
+                      onPointerUp={handleItemPointerUpOrLeave}
+                      onPointerCancel={handleItemPointerUpOrLeave}
+                      onPointerLeave={handleItemPointerUpOrLeave}
+                      className="group cursor-pointer flex flex-col items-center select-none relative"
+                    >
+                      <div className={`w-full aspect-square bg-surface rounded-lg overflow-hidden border transition-all relative mb-2 shadow-sm flex items-center justify-center ${
+                        isSelected ? "border-primary ring-2 ring-primary scale-95" : "border-transparent group-hover:border-primary/50"
+                      }`}>
+                        {isImage ? (
+                          thumbUrl ? (
                             <div
-                              key={file.path}
-                              onClick={(e) => handleItemClick(e, file)}
-                              onPointerDown={(e) => handleItemPointerDown(e, file)}
-                              onPointerUp={handleItemPointerUpOrLeave}
-                              onPointerCancel={handleItemPointerUpOrLeave}
-                              onPointerLeave={handleItemPointerUpOrLeave}
-                              className="group cursor-pointer flex flex-col items-center select-none relative"
-                            >
-                              <div className="w-full aspect-square bg-surface rounded-lg overflow-hidden border border-transparent group-hover:border-primary/50 transition-colors relative mb-2 shadow-sm flex items-center justify-center">
-                                {isImage ? (
-                                  thumbUrl ? (
-                                    <div
-                                      className="w-full h-full object-cover bg-no-repeat bg-center bg-cover"
-                                      style={{ backgroundImage: `url(${thumbUrl})` }}
-                                    />
-                                  ) : (
-                                    <FileImage size={40} className="text-muted-foreground/60" />
-                                  )
-                                ) : isVideo ? (
+                              className="w-full h-full object-cover bg-no-repeat bg-center bg-cover"
+                              style={{ backgroundImage: `url(${thumbUrl})` }}
+                            />
+                          ) : (
+                            <FileImage size={40} className="text-muted-foreground/60" />
+                          )
+                        ) : isVideo ? (
                                   <>
                                     <div className="w-full h-full bg-surface-elevated flex items-center justify-center">
                                       <FileVideo size={44} className="text-muted-foreground/40" />
@@ -1233,7 +1366,20 @@ export default function Browser() {
                                   </div>
                                   <div className="p-1 flex flex-col gap-0.5">
                                     <button
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenMenuPath(null);
+                                        setIsSelectionMode(true);
+                                        toggleSelection(file.path);
+                                      }}
+                                      className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface rounded-md transition-colors w-full text-left"
+                                    >
+                                      <CheckCircle2 size={14} />
+                                      Select
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         setOpenMenuPath(null);
                                         handleRename(file);
                                       }}
@@ -1284,7 +1430,10 @@ export default function Browser() {
                   <div className="hidden md:block">Date Modified</div>
                   <div></div>
                 </div>
-                {displayedFiles.map((file, idx) => (
+                {displayedFiles.map((file, idx) => {
+                  const isSelected = selectedPaths.has(file.path);
+                  
+                  return (
                   <div 
                     key={idx}
                     onClick={(e) => handleItemClick(e, file)}
@@ -1292,11 +1441,23 @@ export default function Browser() {
                     onPointerUp={handleItemPointerUpOrLeave}
                     onPointerCancel={handleItemPointerUpOrLeave}
                     onPointerLeave={handleItemPointerUpOrLeave}
-                    className="grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_1fr_120px_150px_40px] gap-4 px-3 py-2.5 rounded-lg hover:bg-surface cursor-pointer items-center group transition-colors border border-transparent hover:border-border-standard select-none"
+                    className={`grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_1fr_120px_150px_40px] gap-4 px-3 py-2.5 rounded-lg cursor-pointer items-center group transition-colors border select-none ${
+                      isSelected ? "bg-primary/10 border-primary/50" : "hover:bg-surface border-transparent hover:border-border-standard"
+                    }`}
                   >
-                    <div className="text-muted-foreground group-hover:text-primary transition-colors">
-                      {file.is_dir ? <Folder size={18} fill="currentColor" fillOpacity={0.2} /> : <File size={18} />}
-                    </div>
+                    {isSelectionMode ? (
+                      <div className="flex items-center justify-center w-5 mr-2">
+                        {isSelected ? (
+                          <CheckCircle2 size={18} className="text-primary fill-primary text-white" />
+                        ) : (
+                          <Circle size={18} className="text-muted-foreground/50" />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground group-hover:text-primary transition-colors">
+                        {file.is_dir ? <Folder size={18} fill="currentColor" fillOpacity={0.2} /> : <File size={18} />}
+                      </div>
+                    )}
                     <div className="text-[14px] font-[510] text-foreground truncate min-w-0 pr-4" title={file.name}>
                       {file.name}
                     </div>
@@ -1324,7 +1485,23 @@ export default function Browser() {
                             onMouseLeave={() => setOpenMenuPath(null)}
                           >
                             <button
-                              onClick={() => handleRename(file)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuPath(null);
+                                setIsSelectionMode(true);
+                                toggleSelection(file.path);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-ghost transition-colors"
+                            >
+                              <CheckCircle2 size={14} />
+                              Select
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuPath(null);
+                                handleRename(file);
+                              }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-ghost transition-colors"
                             >
                               <Pencil size={14} />
@@ -1351,12 +1528,100 @@ export default function Browser() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
+      
+      {/* Selection Mode Floating Action Bar */}
+      {isSelectionMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+          <div className="bg-panel/90 backdrop-blur-xl border border-border-standard shadow-2xl rounded-2xl p-2 flex items-center justify-between">
+            <div className="flex items-center gap-3 pl-2">
+              <button 
+                onClick={clearSelection}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-full hover:bg-surface transition-colors"
+                title="Cancel"
+              >
+                <X size={18} />
+              </button>
+              <span className="text-[14px] font-medium text-foreground">
+                {selectedPaths.size} selected
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-1 pr-1">
+              <button
+                onClick={selectedPaths.size === displayedFiles.length ? clearSelection : selectAll}
+                className="px-3 py-1.5 text-[13px] font-medium text-foreground hover:bg-surface rounded-lg transition-colors"
+              >
+                {selectedPaths.size === displayedFiles.length ? "Deselect All" : "Select All"}
+              </button>
+              
+              <div className="w-[1px] h-4 bg-border-standard mx-1"></div>
+              
+              <button
+                onClick={handleBatchDownload}
+                disabled={!Array.from(selectedPaths).some(p => {
+                  const f = displayedFiles.find(df => df.path === p);
+                  return f && !f.is_dir;
+                })}
+                className="p-2 text-foreground hover:bg-surface rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Download Selected"
+              >
+                <Download size={18} />
+              </button>
+              
+              <button
+                onClick={() => setIsBatchDeleteOpen(true)}
+                disabled={selectedPaths.size === 0}
+                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Delete Selected"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation */}
+      {isBatchDeleteOpen && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={() => !isBatchDeleting && setIsBatchDeleteOpen(false)}>
+          <div className="w-[380px] rounded-xl bg-panel border border-border-standard shadow-lg p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 text-destructive mb-3">
+              <AlertCircle size={24} className="shrink-0 mt-0.5" />
+              <div>
+                <div className="text-[15px] font-[510] text-foreground mb-1">Delete {selectedPaths.size} items?</div>
+                <div className="text-[13px] text-muted-foreground leading-relaxed">
+                  Are you sure you want to permanently delete {selectedPaths.size} selected items? This action cannot be undone.
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setIsBatchDeleteOpen(false)}
+                disabled={isBatchDeleting}
+                className="px-4 py-2 text-[13px] font-medium text-foreground hover:bg-surface rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={isBatchDeleting}
+                className="px-4 py-2 text-[13px] font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg transition-colors flex items-center gap-2"
+              >
+                {isBatchDeleting && <Loader2 size={14} className="animate-spin" />}
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isNewFolderOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
