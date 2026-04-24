@@ -453,7 +453,7 @@ export default function Home() {
                   type="text" 
                   value={formData.url}
                   onChange={(e) => setFormData({...formData, url: e.target.value})}
-                  placeholder={formData.protocol === "smb" ? "e.g. 192.168.2.200/Public" : "e.g. http://192.168.2.200:5005/webdav"} 
+                  placeholder={formData.protocol === "smb" ? "e.g. 192.168.2.200/ShareName/Subfolder" : "e.g. http://192.168.2.200:5005/webdav"} 
                   className="w-full bg-background border border-border-standard rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-primary/50 transition-colors"
                 />
               </div>

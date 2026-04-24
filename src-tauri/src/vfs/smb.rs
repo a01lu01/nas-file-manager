@@ -3,6 +3,25 @@ use async_trait::async_trait;
 use std::any::Any;
 use tokio::process::Command;
 
+fn parse_smb_target(input: &str) -> (String, String, Option<String>) {
+    let clean = input.trim_start_matches("smb://").trim_end_matches('/');
+    
+    if let Some(idx) = clean.find('/') {
+        let server = clean[..idx].to_string();
+        let rest = &clean[idx + 1..];
+        
+        if let Some(share_idx) = rest.find('/') {
+            let share = rest[..share_idx].to_string();
+            let base_path = rest[share_idx + 1..].to_string();
+            (server, share, Some(base_path))
+        } else {
+            (server, rest.to_string(), None)
+        }
+    } else {
+        (clean.to_string(), String::new(), None)
+    }
+}
+
 pub struct SmbStorage {
     server: String,
     share: String,
@@ -13,15 +32,18 @@ pub struct SmbStorage {
 }
 
 impl SmbStorage {
-    pub fn new(server: &str, share: &str, base_path: Option<&str>, user: &str, pass: &str, _auth_fallback: bool) -> Self {
+    pub fn new(url: &str, user: &str, pass: &str, _auth_fallback: bool) -> Self {
+        // 解析 URL 提取 server, share, base_path
+        let (server, share, base_path) = parse_smb_target(url);
+        
         // 创建一个唯一的挂载点
         let unique_id = uuid::Uuid::new_v4().to_string();
         let mount_point = format!("/tmp/nas_mount_{}", unique_id);
         
         Self {
-            server: server.to_string(),
-            share: share.to_string(),
-            base_path: base_path.map(|s| s.to_string()),
+            server,
+            share,
+            base_path,
             user: user.to_string(),
             pass: pass.to_string(),
             mount_point,

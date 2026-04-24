@@ -105,7 +105,7 @@ async fn save_saved_connections(
     Ok(true)
 }
 
-fn parse_smb_target(input: &str) -> Result<(String, String, Option<String>), VfsError> {
+fn parse_smb_target_from_url(input: &str) -> Result<(String, String, Option<String>), VfsError> {
     let mut s = input.trim().to_string();
     if let Some(rest) = s.strip_prefix("smb://") {
         s = rest.to_string();
@@ -127,10 +127,10 @@ fn parse_smb_target(input: &str) -> Result<(String, String, Option<String>), Vfs
     let base_path = if base.is_empty() {
         None
     } else {
-        Some(base.join("\\"))
+        Some(base.join("/"))
     };
     log::debug!(
-        "parse_smb_target: input={:?} server={:?} share={:?} base_path={:?}",
+        "parse_smb_target_from_url: input={:?} server={:?} share={:?} base_path={:?}",
         input,
         server,
         share,
@@ -184,11 +184,9 @@ async fn connect_server(
     let storage: Arc<dyn Storage> = match protocol.as_str() {
         "webdav" => Arc::new(WebDavStorage::new(&url, &user, &pass)),
         "smb" => {
-            let (server, share, base_path) = parse_smb_target(&url)?;
+            let (server, share, base_path) = parse_smb_target_from_url(&url)?;
             Arc::new(SmbStorage::new(
-                &server,
-                &share,
-                base_path.as_deref(),
+                &url, // Pass the original URL to let SmbStorage parse it correctly
                 &user,
                 &pass,
                 auth_fallback,
