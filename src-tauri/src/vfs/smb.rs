@@ -43,24 +43,42 @@ impl SmbStorage {
         }
 
         // 构建挂载 URL
-        // smb://user:pass@server/share
+        // macOS smb:// 的密码如果有特殊字符需要 urlencoding
         let encoded_user = urlencoding::encode(&self.user);
         let encoded_pass = urlencoding::encode(&self.pass);
         
         let target_share = if self.share.is_empty() {
-            "IPC$" // 作为 fallback
+            // 如果用户没填 share，macOS 默认不能直接挂载根节点。
+            // 这里我们要求用户尽量填，不填的话默认使用第一个找到的 share 或者 IPC$。
+            // 但为了通用性，如果没填，我们不要强制加 IPC$，有些 NAS 会拒绝。
+            ""
         } else {
             &self.share
         };
 
         let mount_url = if self.user.is_empty() {
-            format!("smb://{}/{}", self.server, target_share)
+            if target_share.is_empty() {
+                format!("smb://{}", self.server)
+            } else {
+                format!("smb://{}/{}", self.server, target_share)
+            }
         } else {
-            format!("smb://{}:{}@{}/{}", encoded_user, encoded_pass, self.server, target_share)
+            if target_share.is_empty() {
+                format!("smb://{}:{}@{}", encoded_user, encoded_pass, self.server)
+            } else {
+                format!("smb://{}:{}@{}/{}", encoded_user, encoded_pass, self.server, target_share)
+            }
         };
 
         #[cfg(target_os = "macos")]
         {
+            // mount_smbfs 需要一个特定的 share 才能挂载。
+            // 如果用户没有指定 share 且 URL 没有路径，mount_smbfs 可能会报错 "No such file or directory"
+            // 解决办法：提示用户必须输入 Share 名称
+            if target_share.is_empty() {
+                return Err(VfsError::NetworkError("For macOS SMB connection, a Share Name (e.g. 'Public', 'Data') is required.".to_string()));
+            }
+
             let output = Command::new("mount_smbfs")
                 .arg(&mount_url)
                 .arg(&self.mount_point)
