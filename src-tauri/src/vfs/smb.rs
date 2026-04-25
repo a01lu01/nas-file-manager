@@ -4,8 +4,7 @@ use std::any::Any;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
-use smb::auth::SimpleAuthenticator;
-use smb::SmbClient;
+use smb::{Client, ClientConfig, UncPath};
 
 pub struct SmbStorage {
     server: String,
@@ -75,25 +74,14 @@ impl SmbStorage {
     }
 
     async fn list_shares_via_smb_crate(&self) -> Result<Vec<FileItem>, VfsError> {
-        let auth = if self.user.is_empty() {
-            SimpleAuthenticator::new_guest()
-        } else {
-            SimpleAuthenticator::new(&self.user, &self.pass)
-        };
-
-        let server_url = format!("tcp://{}:445", self.server);
+        let client = Client::new(ClientConfig::default());
         
-        let client = SmbClient::new(auth, smb::SmbOptions::default())
-            .map_err(|e| VfsError::NetworkError(format!("Failed to init SMB client: {}", e)))?;
-            
-        let session = client.connect(&server_url).await
-            .map_err(|e| VfsError::NetworkError(format!("SMB connection failed: {}", e)))?;
-
-        let tree_names = session.list_shares().await
-            .map_err(|e| VfsError::NetworkError(format!("Failed to list shares: {}", e)))?;
+        let shares = client.list_shares(&self.server).await
+            .map_err(|e| VfsError::NetworkError(format!("Failed to list shares: {:?}", e)))?;
 
         let mut items = Vec::new();
-        for name in tree_names {
+        for share_info in shares {
+            let name = share_info.netname;
             if name.ends_with('$') { continue; }
             
             items.push(FileItem {

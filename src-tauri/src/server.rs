@@ -55,12 +55,21 @@ async fn stream_handler(
                     .unwrap();
                 *req_empty.headers_mut() = headers.clone();
                 
-                if let Ok(mut response) = service.oneshot(req_empty).await {
-                    response.headers_mut().insert(
-                        axum::http::header::CACHE_CONTROL,
-                        axum::http::HeaderValue::from_static("public, max-age=86400")
-                    );
-                    return response.into_response();
+                if let Ok(response) = service.oneshot(req_empty).await {
+                    if response.status() == axum::http::StatusCode::OK {
+                        // For HEAD requests, we don't want to read the body, just return headers
+                        // We use the builder to create a new response with the same headers but empty body
+                        let mut builder = axum::response::Response::builder()
+                            .status(axum::http::StatusCode::OK);
+                            
+                        for (k, v) in response.headers() {
+                            builder = builder.header(k, v);
+                        }
+                        
+                        builder = builder.header(axum::http::header::CACHE_CONTROL, "public, max-age=86400");
+                        
+                        return builder.body(axum::body::Body::empty()).unwrap();
+                    }
                 }
             }
             
@@ -77,7 +86,7 @@ async fn stream_handler(
                         let thumb_bytes = buf.into_inner();
                         let _ = tokio::fs::write(&thumb_path, &thumb_bytes).await;
                         
-                        let mut response = axum::response::Response::builder()
+                        let response = axum::response::Response::builder()
                             .status(200)
                             .header("Content-Type", "image/jpeg")
                             .header("Cache-Control", "public, max-age=86400")

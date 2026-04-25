@@ -401,7 +401,7 @@ impl Storage for WebDavStorage {
 
     async fn stream_file(&self, path: &str, req_headers: axum::http::HeaderMap) -> Result<axum::response::Response, VfsError> {
         use axum::response::IntoResponse;
-        use axum::http::{HeaderName, HeaderValue};
+        use axum::http::HeaderValue;
         use reqwest::header::{RANGE, IF_NONE_MATCH, IF_MATCH};
 
         let mut req = self.build_request(Method::GET, path, false);

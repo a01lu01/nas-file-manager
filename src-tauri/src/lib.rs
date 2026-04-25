@@ -14,7 +14,6 @@ pub mod vfs;
 pub mod download;
 pub mod server;
 
-use url::Url;
 use vfs::{Storage, webdav::WebDavStorage, smb::SmbStorage, FileItem, VfsError};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -186,10 +185,11 @@ async fn connect_server(
         "smb" => {
             let (server, share, base_path) = parse_smb_target_from_url(&url)?;
             Arc::new(SmbStorage::new(
-                &url, // Pass the original URL to let SmbStorage parse it correctly
+                &server,
+                share.as_deref(),
+                base_path.as_deref(),
                 &user,
                 &pass,
-                auth_fallback,
             ))
         },
         _ => return Err(VfsError::Internal("Unsupported protocol".to_string())),
