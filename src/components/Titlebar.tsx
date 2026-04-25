@@ -22,19 +22,19 @@ export function Titlebar({ title = "NAS File Manager", showIcon = false }: Title
     }
   }, []);
 
-  const handleMinimize = async () => {
+  const handleMinimize = () => {
     const appWindow = getCurrentWindow();
-    await appWindow.minimize();
+    appWindow.minimize().catch(console.error);
   };
 
-  const handleToggleMaximize = async () => {
+  const handleToggleMaximize = () => {
     const appWindow = getCurrentWindow();
-    await appWindow.toggleMaximize();
+    appWindow.toggleMaximize().catch(console.error);
   };
 
-  const handleClose = async () => {
+  const handleClose = () => {
     const appWindow = getCurrentWindow();
-    await appWindow.close();
+    appWindow.close().catch(console.error);
   };
 
   const isMac = osType === "macos";
