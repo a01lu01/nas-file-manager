@@ -16,7 +16,7 @@ pub struct SmbStorage {
 }
 
 impl SmbStorage {
-    pub fn new(server: &str, share: Option<&str>, base_path: Option<&str>, user: &str, pass: &str) -> Self {
+    pub fn new(server: &str, share: Option<&str>, base_path: Option<&str>, user: &str, pass: &str, _auth_fallback: bool) -> Self {
         Self {
             server: server.to_string(),
             share: share.map(|s| s.to_string()),
@@ -74,17 +74,30 @@ impl SmbStorage {
     }
 
     async fn list_shares_via_smb_crate(&self) -> Result<Vec<FileItem>, VfsError> {
-        let client = Client::new(ClientConfig::default());
+        let mut config = ClientConfig::default();
+        config.connection.auth_methods.ntlm = true;
         
+        let client = Client::new(config);
+        
+        // Ensure we connect to IPC$ first to authenticate the session
+        let target_path = format!(r"\\{}\IPC$", self.server);
+        if let Ok(unc_path) = std::str::FromStr::from_str(&target_path) {
+            let _ = client.share_connect(&unc_path, &self.user, self.pass.clone()).await;
+        }
+
         let shares = client.list_shares(&self.server).await
             .map_err(|e| VfsError::NetworkError(format!("Failed to list shares: {:?}", e)))?;
 
         let mut items = Vec::new();
         for share_info in shares {
             // share_info.netname is an NdrPtr<NdrString<u16>>
-            // We need to dereference it to get the NdrString, then convert to String
+            // We need to dereference it to get Option<NdrAlign<NdrString<u16>>>
             let name = match &*share_info.netname {
-                Some(ndr_str) => ndr_str.to_string(),
+                Some(ndr_align) => {
+                    // Dereference NdrAlign to get NdrString<u16>, then use its Display impl
+                    let ndr_str = &**ndr_align;
+                    format!("{}", ndr_str)
+                },
                 None => continue,
             };
             

@@ -55,29 +55,27 @@ async fn stream_handler(
                     .unwrap();
                 *req_empty.headers_mut() = headers.clone();
                 
-                if let Ok(response) = service.oneshot(req_empty).await {
-                    if response.status() == axum::http::StatusCode::OK {
-                        if req.method() == axum::http::Method::HEAD {
-                            let mut builder = axum::response::Response::builder()
-                                .status(axum::http::StatusCode::OK);
-                                
-                            for (k, v) in response.headers() {
-                                builder = builder.header(k, v);
-                            }
+                let mut response = service.oneshot(req_empty).await.unwrap();
+                if response.status() == axum::http::StatusCode::OK {
+                    if req.method() == axum::http::Method::HEAD {
+                        let mut builder = axum::response::Response::builder()
+                            .status(axum::http::StatusCode::OK);
                             
-                            builder = builder.header(axum::http::header::CACHE_CONTROL, "public, max-age=86400");
-                            
-                            return builder.body(axum::body::Body::empty()).unwrap();
+                        for (k, v) in response.headers() {
+                            builder = builder.header(k, v);
                         }
                         
-                        let mut response = response.into_response();
-                        response.headers_mut().insert(
-                            axum::http::header::CACHE_CONTROL,
-                            axum::http::HeaderValue::from_static("public, max-age=86400"),
-                        );
+                        builder = builder.header(axum::http::header::CACHE_CONTROL, "public, max-age=86400");
                         
-                        return response;
+                        return builder.body(axum::body::Body::empty()).unwrap();
                     }
+                    
+                    response.headers_mut().insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::HeaderValue::from_static("public, max-age=86400"),
+                    );
+                    
+                    return response.into_response();
                 }
             }
             
