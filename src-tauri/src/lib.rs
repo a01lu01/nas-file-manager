@@ -14,7 +14,7 @@ pub mod vfs;
 pub mod download;
 pub mod server;
 
-use vfs::{Storage, webdav::WebDavStorage, smb::SmbStorage, FileItem, VfsError};
+use vfs::{Storage, webdav::WebDavStorage, FileItem, VfsError};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiscoveredNas {
@@ -104,38 +104,8 @@ async fn save_saved_connections(
     Ok(true)
 }
 
-fn parse_smb_target_from_url(input: &str) -> Result<(String, Option<String>, Option<String>), VfsError> {
-    let mut s = input.trim().to_string();
-    if let Some(rest) = s.strip_prefix("smb://") {
-        s = rest.to_string();
-    }
-    s = s.replace('\\', "/");
-    while s.starts_with('/') {
-        s = s.trim_start_matches('/').to_string();
-    }
-    let mut parts = s.split('/').filter(|p| !p.is_empty());
-    let server = parts
-        .next()
-        .ok_or_else(|| VfsError::Internal("SMB server is required".to_string()))?
-        .to_string();
-        
-    let share = parts.next().map(|s| s.to_string());
-    
-    let base: Vec<&str> = parts.collect();
-    let base_path = if base.is_empty() {
-        None
-    } else {
-        Some(base.join("/"))
-    };
-    log::debug!(
-        "parse_smb_target_from_url: input={:?} server={:?} share={:?} base_path={:?}",
-        input,
-        server,
-        share,
-        base_path
-    );
-    Ok((server, share, base_path))
-}
+// Removed parse_smb_target_from_url
+
 
 // 全局状态：保存所有的存储连接实例
 pub struct AppState {
@@ -181,17 +151,6 @@ async fn connect_server(
     );
     let storage: Arc<dyn Storage> = match protocol.as_str() {
         "webdav" => Arc::new(WebDavStorage::new(&url, &user, &pass)),
-        "smb" => {
-            let (server, share, base_path) = parse_smb_target_from_url(&url)?;
-            Arc::new(SmbStorage::new(
-                &server,
-                share.as_deref(),
-                base_path.as_deref(),
-                &user,
-                &pass,
-                auth_fallback,
-            ))
-        },
         _ => return Err(VfsError::Internal("Unsupported protocol".to_string())),
     };
 

@@ -10,7 +10,7 @@ pub struct FileItem {
     pub is_dir: bool,
     pub size: u64,
     pub last_modified: Option<i64>, // Unix timestamp
-    pub protocol: String,           // "smb" or "webdav"
+    pub protocol: String,           // "webdav"
 }
 
 #[derive(Error, Debug, Serialize)]
@@ -63,4 +63,3 @@ pub trait Storage: Send + Sync {
 }
 
 pub mod webdav;
-pub mod smb;
