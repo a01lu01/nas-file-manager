@@ -14,12 +14,18 @@ pub struct SmbStorage {
 
 impl SmbStorage {
     pub fn new(server: &str, share: Option<&str>, base_path: Option<&str>, user: &str, pass: &str, _auth_fallback: bool) -> Self {
-        let unique_id = uuid::Uuid::new_v4().to_string();
-        let mount_point = format!("/tmp/nas_mount_{}", unique_id);
+        // We use the exact share name for the native mount point
+        let share_name = share.unwrap_or("").to_string();
+        
+        let mount_point = if share_name.is_empty() {
+            String::new()
+        } else {
+            format!("/Volumes/{}", share_name)
+        };
         
         Self {
             server: server.to_string(),
-            share: share.unwrap_or("").to_string(),
+            share: share_name,
             base_path: base_path.map(|s| s.to_string()),
             user: user.to_string(),
             pass: pass.to_string(),
@@ -28,24 +34,21 @@ impl SmbStorage {
     }
 
     async fn ensure_connected(&self) -> Result<(), VfsError> {
+        if self.share.is_empty() {
+            return Err(VfsError::NetworkError("For macOS native SMB connection, a Share Name must be specified in the URL (e.g. 192.168.2.200/ShareName).".to_string()));
+        }
+
+        // Check if it's already mounted natively in /Volumes/ShareName
         if std::path::Path::new(&self.mount_point).exists() {
             if let Ok(mut entries) = tokio::fs::read_dir(&self.mount_point).await {
                 if entries.next_entry().await.is_ok() {
                     return Ok(());
                 }
             }
-        } else {
-            std::fs::create_dir_all(&self.mount_point)
-                .map_err(|e| VfsError::Internal(format!("Failed to create mount point: {}", e)))?;
         }
 
         let encoded_user = urlencoding::encode(&self.user);
         let encoded_pass = urlencoding::encode(&self.pass);
-        
-        if self.share.is_empty() {
-            return Err(VfsError::NetworkError("For macOS SMB connection, a Share Name (e.g. 'Public', 'Data') is strictly required in the path (e.g. IP/ShareName).".to_string()));
-        }
-
         let encoded_share = urlencoding::encode(&self.share);
 
         let mount_url = if self.user.is_empty() {
@@ -56,20 +59,28 @@ impl SmbStorage {
 
         #[cfg(target_os = "macos")]
         {
-            // 在挂载前，先尝试强行 umount，防止之前的脏挂载导致 "File exists" 错误
-            let _ = Command::new("umount").arg(&self.mount_point).output().await;
-
-            let output = Command::new("mount_smbfs")
-                .arg(&mount_url)
-                .arg(&self.mount_point)
+            // Use AppleScript to mount via Finder, which natively handles encoding, root discovery, and avoiding stale mounts
+            let script = format!("mount volume \"{}\"", mount_url);
+            
+            let output = Command::new("osascript")
+                .arg("-e")
+                .arg(&script)
                 .output()
                 .await
-                .map_err(|e| VfsError::NetworkError(format!("Failed to execute mount_smbfs: {}", e)))?;
+                .map_err(|e| VfsError::NetworkError(format!("Failed to execute osascript: {}", e)))?;
 
             if !output.status.success() {
                 let err_msg = String::from_utf8_lossy(&output.stderr);
-                let _ = Command::new("umount").arg(&self.mount_point).output().await;
-                return Err(VfsError::NetworkError(format!("Mount failed: {}", err_msg)));
+                return Err(VfsError::NetworkError(format!("Native mount failed: {}", err_msg)));
+            }
+            
+            // Wait briefly for macOS to establish the mount in /Volumes
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+            
+            if !std::path::Path::new(&self.mount_point).exists() {
+                // Sometimes macOS appends "-1" if a stale folder exists. Let's try to find it.
+                // But for now, we just return an error and ask user to check Finder.
+                return Err(VfsError::NetworkError(format!("Mount succeeded but could not find volume at {}", self.mount_point)));
             }
         }
 
@@ -221,20 +232,5 @@ impl Storage for SmbStorage {
         );
             
         Ok(response)
-    }
-}
-
-impl Drop for SmbStorage {
-    fn drop(&mut self) {
-        #[cfg(target_os = "macos")]
-        {
-            let mount_point = self.mount_point.clone();
-            std::thread::spawn(move || {
-                let _ = std::process::Command::new("umount")
-                    .arg(&mount_point)
-                    .output();
-                let _ = std::fs::remove_dir(&mount_point);
-            });
-        }
     }
 }
