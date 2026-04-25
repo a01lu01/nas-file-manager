@@ -200,8 +200,13 @@ impl Storage for WebDavStorage {
         let res = req.send().await.map_err(|e| VfsError::NetworkError(e.to_string()))?;
         
         if res.status() == reqwest::StatusCode::NOT_FOUND {
-            // Treat 404 on directory list as an empty directory (especially for root in fnOS)
-            return Ok(Vec::new());
+            // ONLY treat 404 as an empty directory if we are querying the root path.
+            // Treating 404s as empty directories globally would break Nextcloud/Synology and mask real errors.
+            if path.is_empty() || path == "/" {
+                return Ok(Vec::new());
+            } else {
+                return Err(VfsError::NotFound(path.to_string()));
+            }
         }
         
         if res.status() == reqwest::StatusCode::UNAUTHORIZED {
