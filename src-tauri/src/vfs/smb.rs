@@ -2,146 +2,77 @@ use super::{FileItem, Storage, VfsError};
 use async_trait::async_trait;
 use std::any::Any;
 use tokio::process::Command;
-use tokio::sync::Mutex;
-use std::collections::HashMap;
-use smb::{Client, ClientConfig};
 
 pub struct SmbStorage {
     server: String,
-    share: Option<String>,
+    share: String,
     base_path: Option<String>,
     user: String,
     pass: String,
-    mounts: Mutex<HashMap<String, String>>,
+    mount_point: String,
 }
 
 impl SmbStorage {
     pub fn new(server: &str, share: Option<&str>, base_path: Option<&str>, user: &str, pass: &str, _auth_fallback: bool) -> Self {
+        let unique_id = uuid::Uuid::new_v4().to_string();
+        let mount_point = format!("/tmp/nas_mount_{}", unique_id);
+        
         Self {
             server: server.to_string(),
-            share: share.map(|s| s.to_string()),
+            share: share.unwrap_or("").to_string(),
             base_path: base_path.map(|s| s.to_string()),
             user: user.to_string(),
             pass: pass.to_string(),
-            mounts: Mutex::new(HashMap::new()),
+            mount_point,
         }
     }
 
-    async fn ensure_share_mounted(&self, share: &str) -> Result<String, VfsError> {
-        let mut mounts = self.mounts.lock().await;
-        if let Some(mount_point) = mounts.get(share) {
-            // Check if still mounted
-            if let Ok(mut entries) = tokio::fs::read_dir(mount_point).await {
+    async fn ensure_connected(&self) -> Result<(), VfsError> {
+        if std::path::Path::new(&self.mount_point).exists() {
+            if let Ok(mut entries) = tokio::fs::read_dir(&self.mount_point).await {
                 if entries.next_entry().await.is_ok() {
-                    return Ok(mount_point.clone());
+                    return Ok(());
                 }
             }
+        } else {
+            std::fs::create_dir_all(&self.mount_point)
+                .map_err(|e| VfsError::Internal(format!("Failed to create mount point: {}", e)))?;
         }
-
-        let unique_id = uuid::Uuid::new_v4().to_string();
-        let mount_point = format!("/tmp/nas_mount_{}_{}", share, unique_id);
-        
-        std::fs::create_dir_all(&mount_point)
-            .map_err(|e| VfsError::Internal(format!("Failed to create mount point: {}", e)))?;
 
         let encoded_user = urlencoding::encode(&self.user);
         let encoded_pass = urlencoding::encode(&self.pass);
         
+        if self.share.is_empty() {
+            return Err(VfsError::NetworkError("For macOS SMB connection, a Share Name (e.g. 'Public', 'Data') is strictly required in the path (e.g. IP/ShareName).".to_string()));
+        }
+
         let mount_url = if self.user.is_empty() {
-            format!("smb://{}/{}", self.server, share)
+            format!("smb://{}/{}", self.server, self.share)
         } else {
-            format!("smb://{}:{}@{}/{}", encoded_user, encoded_pass, self.server, share)
+            format!("smb://{}:{}@{}/{}", encoded_user, encoded_pass, self.server, self.share)
         };
 
         #[cfg(target_os = "macos")]
         {
             let output = Command::new("mount_smbfs")
                 .arg(&mount_url)
-                .arg(&mount_point)
+                .arg(&self.mount_point)
                 .output()
                 .await
                 .map_err(|e| VfsError::NetworkError(format!("Failed to execute mount_smbfs: {}", e)))?;
 
             if !output.status.success() {
                 let err_msg = String::from_utf8_lossy(&output.stderr);
-                let _ = Command::new("umount").arg(&mount_point).output().await;
-                return Err(VfsError::NetworkError(format!("Mount failed for share '{}': {}", share, err_msg)));
+                let _ = Command::new("umount").arg(&self.mount_point).output().await;
+                return Err(VfsError::NetworkError(format!("Mount failed: {}", err_msg)));
             }
         }
 
-        mounts.insert(share.to_string(), mount_point.clone());
-        Ok(mount_point)
+        Ok(())
     }
 
-    async fn list_shares_via_smb_crate(&self) -> Result<Vec<FileItem>, VfsError> {
-        let mut config = ClientConfig::default();
-        config.connection.auth_methods.ntlm = true;
-        
-        let client = Client::new(config);
-        
-        // Ensure we connect to IPC$ first to authenticate the session
-        let target_path = format!(r"\\{}\IPC$", self.server);
-        if let Ok(unc_path) = std::str::FromStr::from_str(&target_path) {
-            let _ = client.share_connect(&unc_path, &self.user, self.pass.clone()).await;
-        }
-
-        let shares = client.list_shares(&self.server).await
-            .map_err(|e| VfsError::NetworkError(format!("Failed to list shares: {:?}", e)))?;
-
-        let mut items = Vec::new();
-        for share_info in shares {
-            // share_info.netname is an NdrPtr<NdrString<u16>>
-            // We need to dereference it to get Option<NdrAlign<NdrString<u16>>>
-            let name = match &*share_info.netname {
-                Some(ndr_align) => {
-                    // Dereference NdrAlign to get NdrString<u16>, then use its Display impl
-                    let ndr_str = &**ndr_align;
-                    format!("{}", ndr_str)
-                },
-                None => continue,
-            };
-            
-            // Clean up null terminators if any
-            let name = name.trim_matches(char::from(0)).to_string();
-            
-            if name.ends_with('$') { continue; }
-            
-            items.push(FileItem {
-                name: name.clone(),
-                path: format!("/{}", name),
-                is_dir: true,
-                size: 0,
-                last_modified: None,
-                protocol: "smb".to_string(),
-            });
-        }
-        
-        Ok(items)
-    }
-
-    fn parse_virtual_path<'a>(&'a self, path: &'a str) -> Result<(String, String), VfsError> {
-        let clean_path = path.trim_start_matches('/');
-        
-        if let Some(fixed_share) = &self.share {
-            Ok((fixed_share.clone(), clean_path.to_string()))
-        } else {
-            if clean_path.is_empty() {
-                return Err(VfsError::Internal("Cannot resolve path for root directory".to_string()));
-            }
-            
-            let mut parts = clean_path.splitn(2, '/');
-            let share_name = parts.next().unwrap().to_string();
-            let rel_path = parts.next().unwrap_or("").to_string();
-            
-            Ok((share_name, rel_path))
-        }
-    }
-
-    async fn resolve_local_path_async(&self, path: &str) -> Result<std::path::PathBuf, VfsError> {
-        let (share_name, rel_path) = self.parse_virtual_path(path)?;
-        
-        let mount_point = self.ensure_share_mounted(&share_name).await?;
-        let mut local_path = std::path::PathBuf::from(&mount_point);
+    fn resolve_local_path(&self, path: &str) -> std::path::PathBuf {
+        let mut local_path = std::path::PathBuf::from(&self.mount_point);
         
         if let Some(base) = &self.base_path {
             for component in base.split('/') {
@@ -151,13 +82,14 @@ impl SmbStorage {
             }
         }
         
-        for component in rel_path.split('/') {
-            if !component.is_empty() {
-                local_path.push(component);
+        if !path.is_empty() && path != "/" {
+            for component in path.trim_start_matches('/').split('/') {
+                if !component.is_empty() {
+                    local_path.push(component);
+                }
             }
         }
-        
-        Ok(local_path)
+        local_path
     }
 }
 
@@ -168,22 +100,13 @@ impl Storage for SmbStorage {
     }
 
     async fn ping(&self) -> Result<bool, VfsError> {
-        if let Some(share) = &self.share {
-            self.ensure_share_mounted(share).await?;
-        } else {
-            let _ = self.list_shares_via_smb_crate().await?;
-        }
+        self.ensure_connected().await?;
         Ok(true)
     }
 
     async fn list_dir(&self, path: &str) -> Result<Vec<FileItem>, VfsError> {
-        let clean_path = path.trim_start_matches('/');
-        
-        if self.share.is_none() && clean_path.is_empty() {
-            return self.list_shares_via_smb_crate().await;
-        }
-
-        let local_path = self.resolve_local_path_async(path).await?;
+        self.ensure_connected().await?;
+        let local_path = self.resolve_local_path(path);
 
         let mut items = Vec::new();
         let mut entries = tokio::fs::read_dir(&local_path)
@@ -223,7 +146,8 @@ impl Storage for SmbStorage {
     }
 
     async fn mkdir(&self, path: &str) -> Result<(), VfsError> {
-        let local_path = self.resolve_local_path_async(path).await?;
+        self.ensure_connected().await?;
+        let local_path = self.resolve_local_path(path);
         tokio::fs::create_dir(&local_path)
             .await
             .map_err(|e| VfsError::NetworkError(e.to_string()))?;
@@ -231,7 +155,8 @@ impl Storage for SmbStorage {
     }
 
     async fn delete(&self, path: &str) -> Result<(), VfsError> {
-        let local_path = self.resolve_local_path_async(path).await?;
+        self.ensure_connected().await?;
+        let local_path = self.resolve_local_path(path);
         let metadata = tokio::fs::metadata(&local_path)
             .await
             .map_err(|e| VfsError::NetworkError(e.to_string()))?;
@@ -249,8 +174,9 @@ impl Storage for SmbStorage {
     }
 
     async fn rename(&self, old_path: &str, new_path: &str) -> Result<(), VfsError> {
-        let old_local_path = self.resolve_local_path_async(old_path).await?;
-        let new_local_path = self.resolve_local_path_async(new_path).await?;
+        self.ensure_connected().await?;
+        let old_local_path = self.resolve_local_path(old_path);
+        let new_local_path = self.resolve_local_path(new_path);
         tokio::fs::rename(&old_local_path, &new_local_path)
             .await
             .map_err(|e| VfsError::NetworkError(e.to_string()))?;
@@ -258,19 +184,7 @@ impl Storage for SmbStorage {
     }
 
     fn get_local_path(&self, path: &str) -> Option<std::path::PathBuf> {
-        if let Ok((share_name, rel_path)) = self.parse_virtual_path(path) {
-            if let Ok(mounts) = self.mounts.try_lock() {
-                if let Some(mount_point) = mounts.get(&share_name) {
-                    let mut local_path = std::path::PathBuf::from(mount_point);
-                    if let Some(base) = &self.base_path {
-                        for c in base.split('/') { if !c.is_empty() { local_path.push(c); } }
-                    }
-                    for c in rel_path.split('/') { if !c.is_empty() { local_path.push(c); } }
-                    return Some(local_path);
-                }
-            }
-        }
-        None
+        Some(self.resolve_local_path(path))
     }
 
     async fn stream_file(&self, path: &str, req_headers: axum::http::HeaderMap) -> Result<axum::response::Response, VfsError> {
@@ -278,7 +192,9 @@ impl Storage for SmbStorage {
         use tower_http::services::ServeFile;
         use tower::ServiceExt;
         
-        let local_path = self.resolve_local_path_async(path).await?;
+        self.ensure_connected().await?;
+        
+        let local_path = self.resolve_local_path(path);
         
         let mut req = axum::http::Request::builder()
             .uri("/")
@@ -307,17 +223,13 @@ impl Drop for SmbStorage {
     fn drop(&mut self) {
         #[cfg(target_os = "macos")]
         {
-            if let Ok(mounts) = self.mounts.try_lock() {
-                for mount_point in mounts.values() {
-                    let mp = mount_point.clone();
-                    std::thread::spawn(move || {
-                        let _ = std::process::Command::new("umount")
-                            .arg(&mp)
-                            .output();
-                        let _ = std::fs::remove_dir(&mp);
-                    });
-                }
-            }
+            let mount_point = self.mount_point.clone();
+            std::thread::spawn(move || {
+                let _ = std::process::Command::new("umount")
+                    .arg(&mount_point)
+                    .output();
+                let _ = std::fs::remove_dir(&mount_point);
+            });
         }
     }
 }

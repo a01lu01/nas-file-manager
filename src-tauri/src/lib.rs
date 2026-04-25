@@ -189,6 +189,7 @@ async fn connect_server(
                 base_path.as_deref(),
                 &user,
                 &pass,
+                auth_fallback,
             ))
         },
         _ => return Err(VfsError::Internal("Unsupported protocol".to_string())),
