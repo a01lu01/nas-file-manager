@@ -32,9 +32,9 @@ impl WebDavStorage {
         let input = url.trim_end_matches('/').to_string();
         // Support lowercase and uppercase http/https scheme mapping
         let parsed_res = if input.to_lowercase().starts_with("http") {
-            reqwest::Url::parse(&input.to_lowercase())
+            reqwest::Url::parse(&input)
         } else {
-            reqwest::Url::parse(&format!("http://{}", input.to_lowercase()))
+            reqwest::Url::parse(&format!("http://{}", input))
         };
         
         let (origin, base_path) = if let Ok(parsed) = parsed_res {
