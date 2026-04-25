@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "window-controls",
+  "description": "Allow window controls",
+  "windows": ["main"],
+  "permissions": [
+    "window:allow-close",
+    "window:allow-minimize",
+    "window:allow-toggle-maximize",
+    "os:allow-type"
+  ]
+}

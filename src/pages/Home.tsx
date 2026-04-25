@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { useConnectionStore } from "@/lib/store";
 import { connectServer, discoverNas, DiscoveredNas, loadSavedConnections, saveSavedConnections } from "@/lib/tauri-api";
+import { Titlebar } from "@/components/Titlebar";
 
 export default function Home() {
   const { theme, setTheme } = useTheme();
@@ -169,24 +170,7 @@ export default function Home() {
   return (
     <div className="h-screen w-full flex flex-col bg-background">
       {/* Custom Titlebar Region */}
-      <div className="titlebar h-10 w-full flex items-center justify-between px-4 border-b border-border/5 bg-panel">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5 titlebar-button">
-            <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50 hover:bg-red-500/80 transition-colors"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50 hover:bg-yellow-500/80 transition-colors"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50 hover:bg-green-500/80 transition-colors"></div>
-          </div>
-        </div>
-        <div className="text-xs font-medium text-muted-foreground">NAS File Manager</div>
-        <div className="flex items-center gap-2 titlebar-button">
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-        </div>
-      </div>
+      <Titlebar />
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">

@@ -8,6 +8,7 @@ import { save, open } from "@tauri-apps/plugin-dialog";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Titlebar } from "@/components/Titlebar";
 
 // --- 自定义视频播放器组件，替代原生 controls 避免系统级强制遮罩 ---
 function CustomVideoPlayer({ url }: { url: string }) {
@@ -1063,27 +1064,7 @@ export default function Browser() {
   return (
     <div className="h-screen w-full flex flex-col bg-background">
       {/* Titlebar */}
-      <div className="titlebar h-10 w-full flex items-center justify-between px-4 border-b border-border-standard bg-panel">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5 titlebar-button">
-            <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50 hover:bg-red-500/80 transition-colors"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50 hover:bg-yellow-500/80 transition-colors"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50 hover:bg-green-500/80 transition-colors"></div>
-          </div>
-        </div>
-        <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-          <HardDrive size={12} className="text-primary" />
-          {activeConnection.name}
-        </div>
-        <div className="flex items-center gap-2 titlebar-button">
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-        </div>
-      </div>
+      <Titlebar title={activeConnection.name} showIcon={true} />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Mobile Sidebar Overlay */}

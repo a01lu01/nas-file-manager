@@ -422,6 +422,8 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_window::init())
+        .plugin(tauri_plugin_os::init())
         .manage(AppState::default())
         .setup(|app| {
             let app_handle = app.handle().clone();

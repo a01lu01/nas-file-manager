@@ -2,6 +2,7 @@ import { useTransfersStore } from "@/lib/transfers-store";
 import { ArrowLeft, Download, Pause, Play, RotateCw, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cancelDownload, pauseDownload, resumeDownload, retryDownload } from "@/lib/tauri-api";
+import { Titlebar } from "@/components/Titlebar";
 
 export default function Transfers() {
   const navigate = useNavigate();
@@ -11,18 +12,7 @@ export default function Transfers() {
 
   return (
     <div className="h-screen w-full flex flex-col bg-background">
-      <div className="titlebar h-10 w-full flex items-center justify-between px-4 border-b border-border-standard bg-panel">
-        <div className="titlebar-button flex items-center gap-2">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft size={14} />
-          </button>
-          <div className="text-xs font-medium text-muted-foreground">Transfers</div>
-        </div>
-        <div className="titlebar-button" />
-      </div>
+      <Titlebar title="Transfer Manager" showIcon={false} />
 
       <div className="flex-1 overflow-auto p-4">
         <div className="flex items-center justify-between mb-3">
