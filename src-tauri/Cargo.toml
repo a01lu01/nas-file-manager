@@ -43,5 +43,4 @@ tower = { version = "0.5.3", features = ["util"] }
 image = { version = "0.25.6", features = ["jpeg", "png", "webp"] }
 sha2 = "0.10.9"
 hex = "0.4.3"
-tauri-plugin-window = "2.0.0-alpha.2"
 tauri-plugin-os = "2.3.2"

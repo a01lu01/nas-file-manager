@@ -118,7 +118,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-log",
  "tauri-plugin-os",
- "tauri-plugin-window",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
@@ -4978,17 +4977,6 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "tauri-plugin-window"
-version = "2.0.0-alpha.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "646c4d192ac58631b56059b5a3b26b254b42dcae91a455a818a22687bb841c39"
-dependencies = [
- "serde",
- "tauri",
- "thiserror 1.0.69",
 ]
 
 [[package]]

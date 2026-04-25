@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Window } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type } from "@tauri-apps/plugin-os";
 import { Moon, Sun, HardDrive, Minus, Square, X } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -23,17 +23,17 @@ export function Titlebar({ title = "NAS File Manager", showIcon = false }: Title
   }, []);
 
   const handleMinimize = async () => {
-    const appWindow = Window.getCurrent();
+    const appWindow = getCurrentWindow();
     await appWindow.minimize();
   };
 
   const handleToggleMaximize = async () => {
-    const appWindow = Window.getCurrent();
+    const appWindow = getCurrentWindow();
     await appWindow.toggleMaximize();
   };
 
   const handleClose = async () => {
-    const appWindow = Window.getCurrent();
+    const appWindow = getCurrentWindow();
     await appWindow.close();
   };
 

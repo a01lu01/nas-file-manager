@@ -4,9 +4,9 @@
   "description": "Allow window controls",
   "windows": ["main"],
   "permissions": [
-    "window:allow-close",
-    "window:allow-minimize",
-    "window:allow-toggle-maximize",
-    "os:allow-type"
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "os:allow-os-type"
   ]
 }
