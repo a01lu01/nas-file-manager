@@ -40,9 +40,12 @@ export function Titlebar({ title = "NAS File Manager", showIcon = false }: Title
   const isMac = osType === "macos";
 
   return (
-    <div data-tauri-drag-region className="titlebar h-10 w-full flex items-center justify-between px-4 border-b border-border-standard bg-panel select-none">
+    <div className="titlebar h-10 w-full relative flex items-center justify-between px-4 border-b border-border-standard bg-panel select-none">
+      {/* 拖拽背景层 (放在最底层) */}
+      <div data-tauri-drag-region className="absolute inset-0 z-0 w-full h-full" />
+
       {/* Left section: Mac controls or Title (Windows) */}
-      <div data-tauri-drag-region className="flex items-center gap-2 h-full">
+      <div className="relative z-10 flex items-center gap-2 h-full">
         {isMac ? (
           <div className="flex gap-2 titlebar-button items-center h-full group">
             <button onClick={handleClose} className="w-3 h-3 rounded-full bg-red-500/80 border border-red-600/50 hover:bg-red-500 transition-colors flex items-center justify-center">
@@ -63,14 +66,14 @@ export function Titlebar({ title = "NAS File Manager", showIcon = false }: Title
 
       {/* Center section: Title (Mac only) */}
       {isMac && (
-        <div data-tauri-drag-region className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 pointer-events-none absolute left-1/2 -translate-x-1/2">
+        <div data-tauri-drag-region className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 pointer-events-none absolute left-1/2 -translate-x-1/2 z-0 h-full w-full justify-center">
           {showIcon && <HardDrive size={12} className="text-primary" />}
           {title}
         </div>
       )}
 
       {/* Right section: Theme toggle and Windows controls */}
-      <div className="flex items-center gap-2 h-full">
+      <div className="relative z-10 flex items-center gap-2 h-full">
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors titlebar-button"
