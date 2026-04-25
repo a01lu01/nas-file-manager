@@ -25,7 +25,7 @@ export interface FileItem {
   is_dir: boolean;
   size: number;
   last_modified: number | null;
-  protocol: "smb" | "webdav";
+  protocol: "webdav";
 }
 
 export interface DiscoveredNas {
@@ -38,7 +38,7 @@ export interface DiscoveredNas {
 export interface SavedConnection {
   id: string;
   name: string;
-  protocol: "smb" | "webdav";
+  protocol: "webdav";
   url: string;
   user: string;
   auth_fallback?: boolean;
@@ -76,7 +76,7 @@ export const saveSavedConnections = async (
 
 export const connectServer = async (
   id: string,
-  protocol: "smb" | "webdav",
+  protocol: "webdav",
   url: string,
   user: string,
   pass: string,

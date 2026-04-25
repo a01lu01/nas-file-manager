@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 export interface ServerConnection {
   id: string;
   name: string;
-  protocol: "smb" | "webdav";
+  protocol: "webdav";
   url: string;
   user: string;
   // Note: For a production app, we would use Tauri's secure keystore (stronghold)

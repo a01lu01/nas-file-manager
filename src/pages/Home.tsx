@@ -24,7 +24,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    protocol: "smb" as "smb" | "webdav",
+    protocol: "webdav" as "webdav",
     url: "",
     user: "",
     pass: "",
@@ -158,7 +158,7 @@ export default function Home() {
     setEditingId(null);
     setFormData({
       name: "",
-      protocol: "smb",
+      protocol: "webdav",
       url: "",
       user: "",
       pass: "",
@@ -233,7 +233,7 @@ export default function Home() {
                       onClick={() => {
                         setFormData({
                             name: dev.name,
-                            protocol: "smb",
+                            protocol: "webdav",
                             url: dev.ip, // User doesn't have to specify share now
                             user: "",
                             pass: "",
@@ -357,7 +357,7 @@ export default function Home() {
                   } catch (err) {
                     setFormData({
                       name: "",
-                      protocol: "smb",
+                      protocol: "webdav",
                       url: "",
                       user: "",
                       pass: "",
@@ -367,7 +367,7 @@ export default function Home() {
                 } else {
                   setFormData({
                     name: "",
-                    protocol: "smb",
+                    protocol: "webdav",
                     url: "",
                     user: "",
                     pass: "",
@@ -404,7 +404,7 @@ export default function Home() {
                   setEditingId(null);
                   setFormData({
                     name: "",
-                    protocol: "smb",
+                    protocol: "webdav",
                     url: "",
                     user: "",
                     pass: "",
@@ -433,13 +433,6 @@ export default function Home() {
                 <div className="flex gap-2">
                   <button 
                     type="button"
-                    onClick={() => setFormData({...formData, protocol: "smb"})}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${formData.protocol === "smb" ? "bg-primary/10 border-primary/30 text-primary" : "bg-background border-border-standard text-muted-foreground hover:bg-ghost"}`}
-                  >
-                    SMB
-                  </button>
-                  <button 
-                    type="button"
                     onClick={() => setFormData({...formData, protocol: "webdav"})}
                     className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${formData.protocol === "webdav" ? "bg-primary/10 border-primary/30 text-primary" : "bg-background border-border-standard text-muted-foreground hover:bg-ghost"}`}
                   >
@@ -453,7 +446,7 @@ export default function Home() {
                   type="text" 
                   value={formData.url}
                   onChange={(e) => setFormData({...formData, url: e.target.value})}
-                  placeholder={formData.protocol === "smb" ? "e.g. 192.168.2.200/ShareName/Subfolder" : "e.g. http://192.168.2.200:5005/webdav"} 
+                  placeholder="e.g. http://192.168.2.200:5005/webdav" 
                   className="w-full bg-background border border-border-standard rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-primary/50 transition-colors"
                 />
               </div>
@@ -495,28 +488,6 @@ export default function Home() {
                 </div>
               </div>
               
-              {/* Advanced Options (Hidden by default for WebDAV, useful for auth troubleshooting in SMB) */}
-              {formData.protocol === "smb" && (
-                <div className="pt-2">
-                  <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
-                    <span>Advanced Options</span>
-                    <div className="h-px bg-border-standard flex-1 ml-3"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input 
-                        type="checkbox" 
-                        checked={formData.auth_fallback || false}
-                        onChange={(e) => setFormData({...formData, auth_fallback: e.target.checked})}
-                        className="w-4 h-4 rounded border-border-standard text-primary focus:ring-primary/20 transition-colors"
-                      />
-                      <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-                        Use strict NTLM authentication (If getting 0xc0000022)
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              )}
 
               <div className="pt-2">
                 <button 

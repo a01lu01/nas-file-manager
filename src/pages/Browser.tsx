@@ -979,18 +979,20 @@ export default function Browser() {
         
         upsertTask({
           id: `${activeConnection.id}-${file.path}`,
-          filename: file.name,
+          fileName: file.name,
           connectionId: activeConnection.id,
           remotePath: file.path,
           localPath: targetPath,
-          status: "pending",
-          progress: 0,
-          totalSize: file.size,
-          downloadedSize: 0,
-          type: "download",
+          state: "queued",
+          transferred: 0,
+          total: file.size,
+          kind: "download",
+          error: null,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
         });
         
-        startDownload(activeConnection.id, file.path, targetPath).catch(err => {
+        startDownload(activeConnection.id, `${activeConnection.id}-${file.path}`, file.path, targetPath).catch(err => {
           console.error(`Failed to start download for ${file.name}:`, err);
         });
         
@@ -1910,44 +1912,7 @@ export default function Browser() {
           <div 
             className="relative flex-1 flex items-center justify-center p-4 overflow-hidden z-10 pointer-events-none" 
             onClick={e => previewFile.type !== "video" && e.stopPropagation()}
-            onTouchStart={previewFile.type === "image" ? handleImageTouchStart : undefined}
-            onTouchEnd={previewFile.type === "image" ? handleImageTouchEnd : undefined}
           >
-            {previewFile.type === "image" && (
-              <div className="relative w-full h-full flex items-center justify-center group pointer-events-auto">
-                <img
-                  src={previewFile.url}
-                  alt={previewFile.item.name}
-                  className="max-w-full max-h-full object-contain select-none"
-                />
-                
-                {/* 翻页按钮 */}
-                {(() => {
-                  const images = getImagesInCurrentDir();
-                  const currentIndex = images.findIndex(img => img.path === previewFile.item.path);
-                  return (
-                    <>
-                      {currentIndex > 0 && (
-                        <button 
-                          onClick={handlePrevImage}
-                          className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-black/20 hover:bg-black/50 text-white/70 hover:text-white backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all border border-white/10"
-                        >
-                          <ChevronLeft size={28} />
-                        </button>
-                      )}
-                      {currentIndex !== -1 && currentIndex < images.length - 1 && (
-                        <button 
-                          onClick={handleNextImage}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-black/20 hover:bg-black/50 text-white/70 hover:text-white backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all border border-white/10"
-                        >
-                          <ChevronRight size={28} />
-                        </button>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
             {previewFile.type === "video" && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <CustomVideoPlayer url={previewFile.url} />
