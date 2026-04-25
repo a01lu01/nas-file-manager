@@ -108,6 +108,9 @@ impl WebDavStorage {
         if let Some(auth) = &self.auth_header {
             req = req.header("Authorization", auth);
         }
+        
+        // Add basic Accept headers that some strict WebDAV servers might require
+        req = req.header("Accept", "*/*");
         req
     }
 
@@ -175,6 +178,12 @@ impl Storage for WebDavStorage {
             
         let res = req.send().await.map_err(|e| VfsError::NetworkError(e.to_string()))?;
         
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            // Some WebDAV servers (like fnOS) return 404 for PROPFIND on root if no shares are accessible.
+            // In this case, we consider the connection successful but empty.
+            return Ok(true);
+        }
+        
         if res.status().is_success() || res.status() == reqwest::StatusCode::MULTI_STATUS {
             Ok(true)
         } else if res.status() == reqwest::StatusCode::UNAUTHORIZED {
@@ -189,6 +198,11 @@ impl Storage for WebDavStorage {
             .header("Depth", "1");
             
         let res = req.send().await.map_err(|e| VfsError::NetworkError(e.to_string()))?;
+        
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            // Treat 404 on directory list as an empty directory (especially for root in fnOS)
+            return Ok(Vec::new());
+        }
         
         if res.status() == reqwest::StatusCode::UNAUTHORIZED {
             return Err(VfsError::AuthFailed);
