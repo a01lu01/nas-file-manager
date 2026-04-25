@@ -46,10 +46,12 @@ impl SmbStorage {
             return Err(VfsError::NetworkError("For macOS SMB connection, a Share Name (e.g. 'Public', 'Data') is strictly required in the path (e.g. IP/ShareName).".to_string()));
         }
 
+        let encoded_share = urlencoding::encode(&self.share);
+
         let mount_url = if self.user.is_empty() {
-            format!("smb://{}/{}", self.server, self.share)
+            format!("smb://{}/{}", self.server, encoded_share)
         } else {
-            format!("smb://{}:{}@{}/{}", encoded_user, encoded_pass, self.server, self.share)
+            format!("smb://{}:{}@{}/{}", encoded_user, encoded_pass, self.server, encoded_share)
         };
 
         #[cfg(target_os = "macos")]
