@@ -151,3 +151,49 @@ export const retryDownload = async (downloadId: string): Promise<boolean> => {
   const invoke = await getInvoke();
   return invoke("retry_download", { downloadId });
 };
+
+export async function startUpload(
+  connectionId: string,
+  localPath: string,
+  remotePath: string,
+  uploadId: string
+) {
+  const invoke = await getInvoke();
+  return invoke("start_upload", {
+    connectionId,
+    localPath,
+    remotePath,
+    uploadId,
+  });
+}
+
+export async function pauseUpload(uploadId: string) {
+  const invoke = await getInvoke();
+  return invoke("pause_upload", { uploadId });
+}
+
+export async function resumeUpload(uploadId: string) {
+  const invoke = await getInvoke();
+  return invoke("resume_upload", { uploadId });
+}
+
+export async function cancelUpload(uploadId: string, removePartial?: boolean) {
+  const invoke = await getInvoke();
+  return invoke("cancel_upload", { uploadId, removePartial });
+}
+
+export async function retryUpload(
+  connectionId: string,
+  localPath: string,
+  remotePath: string,
+  uploadId: string
+) {
+  const invoke = await getInvoke();
+  return invoke("start_upload", {
+    connectionId,
+    localPath,
+    remotePath,
+    uploadId,
+  });
+}
+

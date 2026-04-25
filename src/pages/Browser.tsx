@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useConnectionStore } from "@/lib/store";
-import { listDirectory, mkdirItem, deleteItem, renameItem, FileItem, startDownload, getProxyUrl, getProxyPort } from "@/lib/tauri-api";
+import { listDirectory, mkdirItem, deleteItem, renameItem, FileItem, startDownload, getProxyUrl, getProxyPort, startUpload } from "@/lib/tauri-api";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, ChevronRight, HardDrive, Search, LayoutGrid, List, ArrowLeft, MoreHorizontal, LogOut, Sun, Moon, Loader2, ArrowUpDown, FolderPlus, Trash2, Pencil, Download, X, ChevronLeft, Play, Pause, Volume2, VolumeX, Maximize, Menu, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, ChevronRight, HardDrive, Search, LayoutGrid, List, ArrowLeft, MoreHorizontal, LogOut, Sun, Moon, Loader2, ArrowUpDown, FolderPlus, Trash2, Pencil, Download, X, ChevronLeft, Play, Pause, Volume2, VolumeX, Maximize, Menu, CheckCircle2, Circle, AlertCircle, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { useTransfersStore } from "@/lib/transfers-store";
@@ -760,6 +760,51 @@ export default function Browser() {
     return false;
   };
 
+  const handleUploadClick = async () => {
+    if (!activeConnection) return;
+    try {
+      const selected = await open({
+        multiple: true,
+        directory: false,
+        title: "Select files to upload",
+      });
+
+      if (Array.isArray(selected) && selected.length > 0) {
+        for (const localPath of selected) {
+          const fileName = localPath.split(/[\\/]/).pop() || "unknown";
+          const remotePath = currentPath === "/" 
+            ? `/${fileName}`
+            : `${currentPath}/${fileName}`;
+            
+          const uploadId = `up_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+          
+          upsertTask({
+            id: uploadId,
+            kind: "upload",
+            connectionId: activeConnection.id,
+            remotePath,
+            fileName,
+            localPath,
+            state: "queued",
+            transferred: 0,
+            total: null,
+            error: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+          
+          startUpload(activeConnection.id, localPath, remotePath, uploadId).catch(err => {
+            console.error(`Failed to start upload for ${fileName}:`, err);
+          });
+        }
+        toast.success(`Added ${selected.length} file(s) to upload queue`);
+      }
+    } catch (error) {
+      console.error("Failed to open file dialog:", error);
+      toast.error("Failed to select files");
+    }
+  };
+
   const handleNewFolder = () => {
     setNewFolderName("");
     setIsNewFolderOpen(true);
@@ -1245,14 +1290,24 @@ export default function Browser() {
                   </button>
                 </div>
                 {!isSelectionMode && (
-                  <button
-                    onClick={handleNewFolder}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
-                    title="New folder"
-                  >
-                    <FolderPlus size={14} />
-                    <span className="max-w-[92px] truncate">New Folder</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={handleUploadClick}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
+                      title="Upload files"
+                    >
+                      <Upload size={14} />
+                      <span className="max-w-[92px] truncate">Upload</span>
+                    </button>
+                    <button
+                      onClick={handleNewFolder}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
+                      title="New folder"
+                    >
+                      <FolderPlus size={14} />
+                      <span className="max-w-[92px] truncate">New Folder</span>
+                    </button>
+                  </>
                 )}
                 <div className="flex bg-ghost border border-border-standard rounded-md p-0.5">
                   <button 
@@ -1306,6 +1361,13 @@ export default function Browser() {
                   <ArrowUpDown size={14} className={sortDir === "asc" ? "" : "rotate-180"} />
                 </button>
               </div>
+              <button
+                onClick={handleUploadClick}
+                className="p-1.5 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors shrink-0"
+                title="Upload files"
+              >
+                <Upload size={14} />
+              </button>
               <button
                 onClick={handleNewFolder}
                 className="p-1.5 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors shrink-0"

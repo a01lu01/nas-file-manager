@@ -9,7 +9,7 @@ export type TransferState =
   | "error"
   | "canceled";
 
-export type TransferKind = "download";
+export type TransferKind = "download" | "upload";
 
 export interface TransferTask {
   id: string;

@@ -477,4 +477,25 @@ impl Storage for WebDavStorage {
 
         Ok(axum_res)
     }
+
+    async fn upload_stream(
+        &self,
+        remote_path: &str,
+        stream: reqwest::Body,
+        content_length: u64,
+    ) -> Result<(), VfsError> {
+        let req = self.build_request(Method::PUT, remote_path, false)
+            .header("Content-Length", content_length.to_string())
+            .body(stream);
+
+        let res = req.send().await.map_err(|e| VfsError::NetworkError(e.to_string()))?;
+
+        if res.status().is_success() || res.status() == reqwest::StatusCode::CREATED {
+            Ok(())
+        } else if res.status() == reqwest::StatusCode::UNAUTHORIZED {
+            Err(VfsError::AuthFailed)
+        } else {
+            Err(VfsError::Internal(res.status().to_string()))
+        }
+    }
 }

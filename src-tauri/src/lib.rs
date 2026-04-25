@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod vfs;
 pub mod download;
+pub mod upload;
 pub mod server;
 
 use vfs::{Storage, webdav::WebDavStorage, FileItem, VfsError};
@@ -113,6 +114,8 @@ pub struct AppState {
     pub storages: Arc<RwLock<HashMap<String, Arc<dyn Storage>>>>,
     pub download_queue: download::DownloadQueue,
     pub downloads: Arc<RwLock<HashMap<String, download::DownloadControl>>>,
+    pub upload_queue: upload::UploadQueue,
+    pub uploads: Arc<RwLock<HashMap<String, upload::UploadControl>>>,
     pub proxy_port: Arc<std::sync::atomic::AtomicU16>,
 }
 
@@ -122,6 +125,8 @@ impl Default for AppState {
             storages: Arc::new(RwLock::new(HashMap::new())),
             download_queue: download::DownloadQueue::new(),
             downloads: Arc::new(RwLock::new(HashMap::new())),
+            upload_queue: upload::UploadQueue::new(),
+            uploads: Arc::new(RwLock::new(HashMap::new())),
             proxy_port: Arc::new(std::sync::atomic::AtomicU16::new(0)),
         }
     }
@@ -382,6 +387,100 @@ async fn retry_download(
     Ok(true)
 }
 
+#[derive(Debug, Serialize)]
+struct StartUploadResponse {
+    upload_id: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct UploadProgressEvent {
+    upload_id: String,
+    transferred: u64,
+    total: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct UploadStateEvent {
+    upload_id: String,
+    state: upload::UploadState,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn start_upload(
+    state: State<'_, AppState>,
+    connectionId: String,
+    localPath: String,
+    remotePath: String,
+    uploadId: Option<String>,
+) -> Result<StartUploadResponse, VfsError> {
+    let upload_id =
+        uploadId.unwrap_or_else(|| format!("up_{}", chrono::Utc::now().timestamp_millis()));
+    let control = upload::UploadControl::new(upload::UploadMeta {
+        connection_id: connectionId.clone(),
+        local_path: localPath.clone(),
+        remote_path: remotePath.clone(),
+    });
+    {
+        let mut g = state.uploads.write().await;
+        g.insert(upload_id.clone(), control);
+    }
+    state
+        .upload_queue
+        .push(upload::UploadRequest {
+            upload_id: upload_id.clone(),
+            connection_id: connectionId,
+            local_path: localPath,
+            remote_path: remotePath,
+        })
+        .await;
+    Ok(StartUploadResponse { upload_id })
+}
+
+#[tauri::command]
+async fn pause_upload(
+    state: State<'_, AppState>,
+    uploadId: String,
+) -> Result<bool, VfsError> {
+    let g = state.uploads.read().await;
+    let c = g
+        .get(&uploadId)
+        .ok_or_else(|| VfsError::NotFound(uploadId))?;
+    c.pause();
+    Ok(true)
+}
+
+#[tauri::command]
+async fn resume_upload(
+    state: State<'_, AppState>,
+    uploadId: String,
+) -> Result<bool, VfsError> {
+    let g = state.uploads.read().await;
+    let c = g
+        .get(&uploadId)
+        .ok_or_else(|| VfsError::NotFound(uploadId))?;
+    c.resume();
+    Ok(true)
+}
+
+#[tauri::command]
+async fn cancel_upload(
+    state: State<'_, AppState>,
+    uploadId: String,
+    removePartial: Option<bool>,
+) -> Result<bool, VfsError> {
+    let remove_partial = removePartial.unwrap_or(true);
+    let g = state.uploads.read().await;
+    let c = g
+        .get(&uploadId)
+        .ok_or_else(|| VfsError::NotFound(uploadId.clone()))?;
+    c.cancel.cancel();
+    if remove_partial {
+        c.mark_remove_partial();
+    }
+    Ok(true)
+}
+
 #[tauri::command]
 async fn get_proxy_port(state: tauri::State<'_, AppState>) -> Result<u16, String> {
     let port = state.proxy_port.load(std::sync::atomic::Ordering::Relaxed);
@@ -639,6 +738,151 @@ pub fn run() {
                 }
             });
 
+            let upload_queue = app.state::<AppState>().upload_queue.clone();
+            let upload_storages = app.state::<AppState>().storages.clone();
+            let uploads = app.state::<AppState>().uploads.clone();
+            let upload_app_handle = app.handle().clone();
+
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    let req = upload_queue.pop().await;
+
+                    let control = {
+                        let g = uploads.read().await;
+                        g.get(&req.upload_id).cloned()
+                    };
+                    let Some(control) = control else {
+                        continue;
+                    };
+
+                    let result: Result<(), VfsError> = async {
+                        let storage = {
+                            let g = upload_storages.read().await;
+                            g.get(&req.connection_id).cloned()
+                        }
+                        .ok_or_else(|| VfsError::Internal("Connection not found".to_string()))?;
+
+                        let mut file = tokio::fs::File::open(&req.local_path)
+                            .await
+                            .map_err(|e| VfsError::Internal(format!("Failed to open file: {}", e)))?;
+                        
+                        let file_size = file.metadata()
+                            .await
+                            .map_err(|e| VfsError::Internal(format!("Failed to read metadata: {}", e)))?
+                            .len();
+
+                        let _ = upload_app_handle.emit(
+                            "upload-state",
+                            UploadStateEvent {
+                                upload_id: req.upload_id.clone(),
+                                state: upload::UploadState::Running,
+                                error: None,
+                            },
+                        );
+
+                        let req_upload_id = req.upload_id.clone();
+                        let app_handle_clone = upload_app_handle.clone();
+                        let control_clone = control.clone();
+
+                        let stream = async_stream::stream! {
+                            let mut buf = [0u8; 64 * 1024];
+                            let mut transferred = 0;
+                            loop {
+                                if control_clone.cancel.is_cancelled() {
+                                    yield Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Upload canceled"));
+                                    break;
+                                }
+
+                                if control_clone.is_paused() {
+                                    let _ = app_handle_clone.emit(
+                                        "upload-state",
+                                        UploadStateEvent {
+                                            upload_id: req_upload_id.clone(),
+                                            state: upload::UploadState::Paused,
+                                            error: None,
+                                        },
+                                    );
+                                    control_clone.wait_resume().await;
+                                    let _ = app_handle_clone.emit(
+                                        "upload-state",
+                                        UploadStateEvent {
+                                            upload_id: req_upload_id.clone(),
+                                            state: upload::UploadState::Running,
+                                            error: None,
+                                        },
+                                    );
+                                }
+
+                                match tokio::io::AsyncReadExt::read(&mut file, &mut buf).await {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        transferred += n as u64;
+                                        let _ = app_handle_clone.emit(
+                                            "upload-progress",
+                                            UploadProgressEvent {
+                                                upload_id: req_upload_id.clone(),
+                                                transferred,
+                                                total: Some(file_size),
+                                            },
+                                        );
+                                        yield Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(&buf[..n]));
+                                    }
+                                    Err(e) => {
+                                        yield Err(e);
+                                        break;
+                                    }
+                                }
+                            }
+                        };
+
+                        let body = reqwest::Body::wrap_stream(stream);
+                        storage.upload_stream(&req.remote_path, body, file_size).await?;
+                        Ok(())
+                    }
+                    .await;
+
+                    match result {
+                        Ok(()) => {
+                            let _ = upload_app_handle.emit(
+                                "upload-state",
+                                UploadStateEvent {
+                                    upload_id: req.upload_id.clone(),
+                                    state: upload::UploadState::Done,
+                                    error: None,
+                                },
+                            );
+                        }
+                        Err(e) => {
+                            let g = uploads.read().await;
+                            let canceled = g
+                                .get(&req.upload_id)
+                                .map(|c| c.cancel.is_cancelled())
+                                .unwrap_or(false);
+                                
+                            if canceled {
+                                let _ = upload_app_handle.emit(
+                                    "upload-state",
+                                    UploadStateEvent {
+                                        upload_id: req.upload_id.clone(),
+                                        state: upload::UploadState::Canceled,
+                                        error: None,
+                                    },
+                                );
+                            } else {
+                                let _ = upload_app_handle.emit(
+                                    "upload-state",
+                                    UploadStateEvent {
+                                        upload_id: req.upload_id.clone(),
+                                        state: upload::UploadState::Error,
+                                        error: Some(e.to_string()),
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -652,6 +896,10 @@ pub fn run() {
             resume_download,
             cancel_download,
             retry_download,
+            start_upload,
+            pause_upload,
+            resume_upload,
+            cancel_upload,
             discover_nas,
             load_saved_connections,
             save_saved_connections,

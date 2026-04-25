@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use async_trait::async_trait;
 use std::any::Any;
+use futures_util::Stream;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileItem {
@@ -60,6 +61,13 @@ pub trait Storage: Send + Sync {
     fn get_local_path(&self, _path: &str) -> Option<std::path::PathBuf> {
         None
     }
+
+    async fn upload_stream(
+        &self,
+        remote_path: &str,
+        stream: reqwest::Body,
+        content_length: u64,
+    ) -> Result<(), VfsError>;
 }
 
 pub mod webdav;

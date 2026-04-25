@@ -8,15 +8,17 @@ import { listen } from "@tauri-apps/api/event";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { Toaster } from "sonner";
 
-function DownloadListeners() {
+function TransferListeners() {
   const patchTask = useTransfersStore((s) => s.patchTask);
 
   useEffect(() => {
-    let unlistenProgress: null | (() => void) = null;
-    let unlistenState: null | (() => void) = null;
+    let unlistenDlProgress: null | (() => void) = null;
+    let unlistenDlState: null | (() => void) = null;
+    let unlistenUpProgress: null | (() => void) = null;
+    let unlistenUpState: null | (() => void) = null;
 
     (async () => {
-      unlistenProgress = await listen<{
+      unlistenDlProgress = await listen<{
         download_id: string;
         transferred: number;
         total: number | null;
@@ -27,7 +29,7 @@ function DownloadListeners() {
         });
       });
 
-      unlistenState = await listen<{
+      unlistenDlState = await listen<{
         download_id: string;
         state: "queued" | "running" | "paused" | "done" | "error" | "canceled";
         error: string | null;
@@ -37,11 +39,35 @@ function DownloadListeners() {
           error: e.payload.error,
         });
       });
+
+      unlistenUpProgress = await listen<{
+        upload_id: string;
+        transferred: number;
+        total: number | null;
+      }>("upload-progress", (e) => {
+        patchTask(e.payload.upload_id, {
+          transferred: e.payload.transferred,
+          total: e.payload.total,
+        });
+      });
+
+      unlistenUpState = await listen<{
+        upload_id: string;
+        state: "queued" | "running" | "paused" | "done" | "error" | "canceled";
+        error: string | null;
+      }>("upload-state", (e) => {
+        patchTask(e.payload.upload_id, {
+          state: e.payload.state,
+          error: e.payload.error,
+        });
+      });
     })();
 
     return () => {
-      unlistenProgress?.();
-      unlistenState?.();
+      unlistenDlProgress?.();
+      unlistenDlState?.();
+      unlistenUpProgress?.();
+      unlistenUpState?.();
     };
   }, [patchTask]);
 
@@ -51,7 +77,7 @@ function DownloadListeners() {
 export default function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="nas-theme" attribute="class">
-      <DownloadListeners />
+      <TransferListeners />
       <div className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/30">
         <Router>
           <Routes>
