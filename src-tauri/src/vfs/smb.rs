@@ -4,7 +4,7 @@ use std::any::Any;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
-use smb::{Client, ClientConfig, UncPath};
+use smb::{Client, ClientConfig};
 
 pub struct SmbStorage {
     server: String,
@@ -81,7 +81,16 @@ impl SmbStorage {
 
         let mut items = Vec::new();
         for share_info in shares {
-            let name = share_info.netname;
+            // share_info.netname is an NdrPtr<NdrString<u16>>
+            // We need to dereference it to get the NdrString, then convert to String
+            let name = match &*share_info.netname {
+                Some(ndr_str) => ndr_str.to_string(),
+                None => continue,
+            };
+            
+            // Clean up null terminators if any
+            let name = name.trim_matches(char::from(0)).to_string();
+            
             if name.ends_with('$') { continue; }
             
             items.push(FileItem {

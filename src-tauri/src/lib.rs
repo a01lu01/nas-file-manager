@@ -104,7 +104,7 @@ async fn save_saved_connections(
     Ok(true)
 }
 
-fn parse_smb_target_from_url(input: &str) -> Result<(String, String, Option<String>), VfsError> {
+fn parse_smb_target_from_url(input: &str) -> Result<(String, Option<String>, Option<String>), VfsError> {
     let mut s = input.trim().to_string();
     if let Some(rest) = s.strip_prefix("smb://") {
         s = rest.to_string();
@@ -118,10 +118,9 @@ fn parse_smb_target_from_url(input: &str) -> Result<(String, String, Option<Stri
         .next()
         .ok_or_else(|| VfsError::Internal("SMB server is required".to_string()))?
         .to_string();
-    let share = parts
-        .next()
-        .unwrap_or("")
-        .to_string();
+        
+    let share = parts.next().map(|s| s.to_string());
+    
     let base: Vec<&str> = parts.collect();
     let base_path = if base.is_empty() {
         None

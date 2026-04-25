@@ -55,7 +55,7 @@ async fn stream_handler(
                     .unwrap();
                 *req_empty.headers_mut() = headers.clone();
                 
-                if let Ok(mut response) = service.oneshot(req_empty).await {
+                if let Ok(response) = service.oneshot(req_empty).await {
                     if response.status() == axum::http::StatusCode::OK {
                         if req.method() == axum::http::Method::HEAD {
                             let mut builder = axum::response::Response::builder()
@@ -70,12 +70,13 @@ async fn stream_handler(
                             return builder.body(axum::body::Body::empty()).unwrap();
                         }
                         
+                        let mut response = response.into_response();
                         response.headers_mut().insert(
                             axum::http::header::CACHE_CONTROL,
                             axum::http::HeaderValue::from_static("public, max-age=86400"),
                         );
                         
-                        return response.into_response();
+                        return response;
                     }
                 }
             }
