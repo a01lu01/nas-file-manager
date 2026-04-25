@@ -55,20 +55,27 @@ async fn stream_handler(
                     .unwrap();
                 *req_empty.headers_mut() = headers.clone();
                 
-                if let Ok(response) = service.oneshot(req_empty).await {
+                if let Ok(mut response) = service.oneshot(req_empty).await {
                     if response.status() == axum::http::StatusCode::OK {
-                        // For HEAD requests, we don't want to read the body, just return headers
-                        // We use the builder to create a new response with the same headers but empty body
-                        let mut builder = axum::response::Response::builder()
-                            .status(axum::http::StatusCode::OK);
+                        if req.method() == axum::http::Method::HEAD {
+                            let mut builder = axum::response::Response::builder()
+                                .status(axum::http::StatusCode::OK);
+                                
+                            for (k, v) in response.headers() {
+                                builder = builder.header(k, v);
+                            }
                             
-                        for (k, v) in response.headers() {
-                            builder = builder.header(k, v);
+                            builder = builder.header(axum::http::header::CACHE_CONTROL, "public, max-age=86400");
+                            
+                            return builder.body(axum::body::Body::empty()).unwrap();
                         }
                         
-                        builder = builder.header(axum::http::header::CACHE_CONTROL, "public, max-age=86400");
+                        response.headers_mut().insert(
+                            axum::http::header::CACHE_CONTROL,
+                            axum::http::HeaderValue::from_static("public, max-age=86400"),
+                        );
                         
-                        return builder.body(axum::body::Body::empty()).unwrap();
+                        return response.into_response();
                     }
                 }
             }
