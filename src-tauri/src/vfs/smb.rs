@@ -56,6 +56,9 @@ impl SmbStorage {
 
         #[cfg(target_os = "macos")]
         {
+            // 在挂载前，先尝试强行 umount，防止之前的脏挂载导致 "File exists" 错误
+            let _ = Command::new("umount").arg(&self.mount_point).output().await;
+
             let output = Command::new("mount_smbfs")
                 .arg(&mount_url)
                 .arg(&self.mount_point)
