@@ -94,6 +94,12 @@ export const translations = {
     'transfers.done': 'Done',
     'transfers.error': 'Error',
     'transfers.canceled': 'Canceled',
+    'transfers.source': 'Source',
+    'transfers.target': 'Destination',
+    'transfers.copy_source': 'Copy source',
+    'transfers.copy_target': 'Copy destination',
+    'transfers.copied': 'Copied',
+    'transfers.copy_failed': 'Copy failed',
   },
   zh: {
     // Home
@@ -165,6 +171,12 @@ export const translations = {
     'transfers.done': '已完成',
     'transfers.error': '错误',
     'transfers.canceled': '已取消',
+    'transfers.source': '来源',
+    'transfers.target': '目标',
+    'transfers.copy_source': '复制来源',
+    'transfers.copy_target': '复制目标',
+    'transfers.copied': '已复制',
+    'transfers.copy_failed': '复制失败',
   }
 };
 

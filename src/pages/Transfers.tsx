@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { ArrowLeft, Download, Pause, Play, RotateCw, X, Upload, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cancelDownload, pauseDownload, resumeDownload, retryDownload, cancelUpload, pauseUpload, resumeUpload, retryUpload } from "@/lib/tauri-api";
 import { Titlebar } from "@/components/Titlebar";
 import { useTranslation } from "@/lib/i18n";
+import { toast } from "sonner";
 
 interface TransfersProps {
   embedded?: boolean;
@@ -17,6 +19,25 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
   const tasks = useTransfersStore((s) => s.tasks);
   const clearFinished = useTransfersStore((s) => s.clearFinished);
   const patchTask = useTransfersStore((s) => s.patchTask);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(t("transfers.copied"));
+    } catch {
+      toast.error(t("transfers.copy_failed"));
+    }
+  };
 
   const handlePause = (task: any) => {
     patchTask(task.id, { state: "paused" });
@@ -88,10 +109,16 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
             {tasks.map((task) => {
               const pct =
                 task.total && task.total > 0 ? Math.min(100, (task.transferred / task.total) * 100) : null;
+              const sourcePath = task.kind === "download" ? task.remotePath : task.localPath;
+              const targetPath = task.kind === "download" ? task.localPath : task.remotePath;
+              const expanded = expandedIds.has(task.id);
               return (
                 <div
                   key={task.id}
-                  className="rounded-xl border border-border-standard bg-surface p-3"
+                  className="rounded-xl border border-border-standard bg-surface p-3 cursor-pointer"
+                  onClick={() => toggleExpanded(task.id)}
+                  role="button"
+                  tabIndex={0}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -103,11 +130,39 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                         )}
                         {task.fileName}
                       </div>
-                      <div className="text-[12px] text-muted-foreground truncate" title={`${task.kind === "upload" ? task.localPath : task.remotePath} → ${task.kind === "upload" ? task.remotePath : task.localPath}`}>
-                        {task.kind === "upload" ? task.localPath : task.remotePath}
-                        <span className="mx-1">→</span>
-                        {task.kind === "upload" ? task.remotePath : task.localPath}
+                      <div className="text-[12px] text-muted-foreground truncate" title={targetPath}>
+                        {targetPath}
                       </div>
+                      {expanded && (
+                        <div className="mt-2 space-y-1">
+                          <div className="text-[12px] text-muted-foreground truncate" title={sourcePath}>
+                            {t("transfers.source")}: {sourcePath}
+                          </div>
+                          <div className="text-[12px] text-muted-foreground truncate" title={targetPath}>
+                            {t("transfers.target")}: {targetPath}
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void copyText(sourcePath);
+                              }}
+                              className="text-xs px-2 py-1 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
+                            >
+                              {t("transfers.copy_source")}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void copyText(targetPath);
+                              }}
+                              className="text-xs px-2 py-1 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
+                            >
+                              {t("transfers.copy_target")}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-[12px] text-muted-foreground whitespace-nowrap">
@@ -120,7 +175,10 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                       </div>
                       {task.state === "running" && (
                         <button
-                          onClick={() => handlePause(task)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePause(task);
+                          }}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Pause size={14} />
@@ -128,7 +186,10 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                       )}
                       {task.state === "paused" && (
                         <button
-                          onClick={() => handleResume(task)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleResume(task);
+                          }}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Play size={14} />
@@ -136,7 +197,10 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                       )}
                       {task.state !== "done" && (
                         <button
-                          onClick={() => handleCancel(task)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancel(task);
+                          }}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-destructive transition-colors"
                         >
                           <X size={14} />
@@ -144,7 +208,10 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                       )}
                       {(task.state === "error" || task.state === "canceled") && (
                         <button
-                          onClick={() => handleRetry(task)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRetry(task);
+                          }}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <RotateCw size={14} />
