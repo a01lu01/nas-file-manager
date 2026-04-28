@@ -6,7 +6,7 @@ import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, C
 import { useTheme } from "next-themes";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { type } from "@tauri-apps/plugin-os";
-import { documentDir, join } from "@tauri-apps/api/path";
+import { documentDir, join, downloadDir } from "@tauri-apps/api/path";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -912,11 +912,10 @@ export default function Browser() {
     let p: string;
     if (type() === 'android') {
       try {
-        const docDir = await documentDir();
-        p = await join(docDir, item.name);
-        toast.info(`Downloading to Documents folder`);
+        const dlDir = await downloadDir();
+        p = await join(dlDir, item.name);
       } catch (err) {
-        toast.error("Failed to get Documents directory on Android");
+        toast.error("Failed to get Download directory on Android");
         return;
       }
     } else {
@@ -946,8 +945,17 @@ export default function Browser() {
       updatedAt: Date.now(),
     });
 
-    await startDownload(activeConnection.id, downloadId, item.path, p);
-    navigate("/transfers");
+    try {
+      await startDownload(activeConnection.id, downloadId, item.path, p);
+      if (type() === 'android') {
+        toast.info(`Downloading to Download folder`);
+      } else {
+        navigate("/transfers");
+      }
+    } catch (err) {
+      console.error("Download start failed:", err);
+      toast.error(`Failed to start download: ${err}`);
+    }
   };
 
   const handleDelete = (item: FileItem) => {
@@ -1046,8 +1054,8 @@ export default function Browser() {
     try {
       let selectedDir: string | null = null;
       if (type() === 'android') {
-        selectedDir = await documentDir();
-        toast.info(`Downloading files to Documents folder`);
+        selectedDir = await downloadDir();
+        toast.info(`Downloading files to Download folder`);
       } else {
         // Ask user for a directory to save all files
         const res = await open({

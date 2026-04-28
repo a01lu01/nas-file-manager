@@ -630,9 +630,15 @@ pub fn run() {
                                 opts.append(true);
                             }
 
+                            // Ensure parent directory exists
+                            if let Some(parent) = Path::new(&req.local_path).parent() {
+                                let _ = std::fs::create_dir_all(parent);
+                            }
+
                             let file = match opts.open(&req.local_path) {
                                 Ok(f) => f,
                                 Err(e) => {
+                                    log::error!("Failed to open local path: {} with error: {}", req.local_path, e);
                                     // Special fallback for Android Download directory
                                     #[cfg(target_os = "android")]
                                     {
