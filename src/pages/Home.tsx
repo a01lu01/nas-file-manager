@@ -175,9 +175,9 @@ export default function Home() {
       <Titlebar />
 
       {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+      <main className="flex-1 flex flex-col items-center justify-start p-6 relative overflow-y-auto min-h-full pt-12 pb-16">
         {/* Decorative background glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/5 rounded-[100%] blur-[120px] pointer-events-none"></div>
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-[100%] blur-[120px] pointer-events-none"></div>
 
         <div className="w-full max-w-md relative z-10">
           <div className="flex flex-col items-center mb-10 space-y-4">

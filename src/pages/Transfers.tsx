@@ -77,7 +77,7 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
             onClick={clearFinished}
             className="text-xs px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
           >
-            Clear finished
+            {t('transfers.clear_finished')}
           </button>
         </div>
 
@@ -109,7 +109,12 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-[12px] text-muted-foreground whitespace-nowrap">
-                        {t.state}
+                        {t.state === "queued" ? t('transfers.queued') :
+                         t.state === "running" ? t('transfers.running') :
+                         t.state === "paused" ? t('transfers.paused') :
+                         t.state === "done" ? t('transfers.done') :
+                         t.state === "error" ? t('transfers.error') :
+                         t.state === "canceled" ? t('transfers.canceled') : t.state}
                       </div>
                       {t.state === "running" && (
                         <button

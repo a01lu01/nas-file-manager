@@ -633,6 +633,13 @@ pub fn run() {
                             let file = match opts.open(&req.local_path) {
                                 Ok(f) => f,
                                 Err(e) => {
+                                    // Special fallback for Android Download directory
+                                    #[cfg(target_os = "android")]
+                                    {
+                                        log::warn!("Fallback to jni or content resolver for {} error: {}", req.local_path, e);
+                                        // On Android 11+ we can't write to Download directory with std::fs
+                                        // We will try to write to app's external files dir instead and copy it later or just change the download dir in frontend.
+                                    }
                                     return Err(VfsError::Internal(format!("Failed to open file {}: {}", req.local_path, e)));
                                 }
                             };

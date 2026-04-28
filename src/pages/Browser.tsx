@@ -6,8 +6,7 @@ import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, C
 import { useTheme } from "next-themes";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { type } from "@tauri-apps/plugin-os";
-import { downloadDir } from "@tauri-apps/api/path";
-import { join } from "@tauri-apps/api/path";
+import { documentDir, join } from "@tauri-apps/api/path";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -913,10 +912,11 @@ export default function Browser() {
     let p: string;
     if (type() === 'android') {
       try {
-        const dlDir = await downloadDir();
-        p = await join(dlDir, item.name);
+        const docDir = await documentDir();
+        p = await join(docDir, item.name);
+        toast.info(`Downloading to Documents folder`);
       } catch (err) {
-        toast.error("Failed to get download directory on Android");
+        toast.error("Failed to get Documents directory on Android");
         return;
       }
     } else {
@@ -1046,7 +1046,8 @@ export default function Browser() {
     try {
       let selectedDir: string | null = null;
       if (type() === 'android') {
-        selectedDir = await downloadDir();
+        selectedDir = await documentDir();
+        toast.info(`Downloading files to Documents folder`);
       } else {
         // Ask user for a directory to save all files
         const res = await open({
@@ -1487,7 +1488,8 @@ export default function Browser() {
                         width: "100%",
                         height: `${virtualRow.size}px`,
                         transform: `translate3d(0, ${virtualRow.start}px, 0)`,
-                        willChange: "transform"
+                        willChange: "transform",
+                        zIndex: row.some((f) => openMenuPath === f.path) ? 50 : 1
                       }}
                     >
                       <div className="grid gap-4 content-start" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
@@ -1509,7 +1511,8 @@ export default function Browser() {
                       onPointerUp={handleItemPointerUpOrLeave}
                       onPointerCancel={handleItemPointerUpOrLeave}
                       onPointerLeave={handleItemPointerUpOrLeave}
-                      className={`group cursor-pointer flex flex-col items-center select-none relative ${openMenuPath === file.path ? 'z-20' : ''}`}
+                      className="group cursor-pointer flex flex-col items-center select-none relative"
+                      style={{ zIndex: openMenuPath === file.path ? 50 : 1 }}
                     >
                       <div className={`w-full aspect-square bg-surface rounded-lg overflow-hidden border transition-all relative mb-2 shadow-sm flex items-center justify-center ${
                         isSelected ? "border-primary ring-2 ring-primary scale-95" : "border-transparent group-hover:border-primary/50"
@@ -1592,7 +1595,7 @@ export default function Browser() {
                                       className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface rounded-md transition-colors w-full text-left"
                                     >
                                       <CheckCircle2 size={14} />
-                                      Select
+                                      {t('browser.select')}
                                     </button>
                                     <button
                                       onClick={(e) => {
@@ -1603,7 +1606,7 @@ export default function Browser() {
                                       className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface rounded-md transition-colors w-full text-left"
                                     >
                                       <Pencil size={14} />
-                                      Rename
+                                      {t('browser.rename')}
                                     </button>
                                     {!file.is_dir && (
                                       <button
@@ -1614,7 +1617,7 @@ export default function Browser() {
                                         className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface rounded-md transition-colors w-full text-left"
                                       >
                                         <Download size={14} />
-                                        Download
+                                        {t('browser.download')}
                                       </button>
                                     )}
                                     <button
@@ -1625,7 +1628,7 @@ export default function Browser() {
                                       className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-red-500/80 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors w-full text-left mt-1 border-t border-border-standard/50 pt-1.5"
                                     >
                                       <Trash2 size={14} />
-                                      Delete
+                                      {t('browser.delete')}
                                     </button>
                                   </div>
                                 </div>
@@ -1711,7 +1714,7 @@ export default function Browser() {
                               className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-ghost transition-colors"
                             >
                               <CheckCircle2 size={14} />
-                              Select
+                              {t('browser.select')}
                             </button>
                             <button
                               onClick={(e) => {
@@ -1722,7 +1725,7 @@ export default function Browser() {
                               className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-ghost transition-colors"
                             >
                               <Pencil size={14} />
-                              Rename
+                              {t('browser.rename')}
                             </button>
                             {!file.is_dir && (
                               <button
@@ -1730,7 +1733,7 @@ export default function Browser() {
                                 className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-ghost transition-colors"
                               >
                                 <Download size={14} />
-                                Download
+                                {t('browser.download')}
                               </button>
                             )}
                             <button
@@ -1738,7 +1741,7 @@ export default function Browser() {
                               className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                             >
                               <Trash2 size={14} />
-                              Delete
+                              {t('browser.delete')}
                             </button>
                           </div>
                         )}
