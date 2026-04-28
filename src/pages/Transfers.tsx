@@ -235,7 +235,12 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                       </div>
                       <div 
                         className="truncate max-w-[60%] cursor-help"
-                        title={task.error ?? ""}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (task.error) {
+                            alert(task.error);
+                          }
+                        }}
                       >
                         {task.error ?? ""}
                       </div>
