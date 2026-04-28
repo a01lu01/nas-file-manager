@@ -778,7 +778,10 @@ pub fn run() {
 
                         let mut file = tokio::fs::File::open(&req.local_path)
                             .await
-                            .map_err(|e| VfsError::Internal(format!("Failed to open file: {}", e)))?;
+                            .map_err(|e| {
+                                log::error!("Upload error: Failed to open local path: {} with error: {}", req.local_path, e);
+                                VfsError::Internal(format!("Failed to open file ({}): {}", req.local_path, e))
+                            })?;
                         
                         let file_size = file.metadata()
                             .await
