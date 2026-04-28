@@ -233,7 +233,12 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                           ? `${(task.transferred / 1024 / 1024).toFixed(1)} / ${(task.total / 1024 / 1024).toFixed(1)} MB`
                           : `${(task.transferred / 1024 / 1024).toFixed(1)} MB`}
                       </div>
-                      <div className="truncate max-w-[60%]">{task.error ?? ""}</div>
+                      <div 
+                        className="truncate max-w-[60%] cursor-help"
+                        title={task.error ?? ""}
+                      >
+                        {task.error ?? ""}
+                      </div>
                     </div>
                   </div>
                 </div>
