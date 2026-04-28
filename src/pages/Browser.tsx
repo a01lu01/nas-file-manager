@@ -911,13 +911,8 @@ export default function Browser() {
 
     let p: string;
     if (type() === 'android') {
-      try {
-        const dlDir = await downloadDir();
-        p = await join(dlDir, item.name);
-      } catch (err) {
-        toast.error("Failed to get Download directory on Android");
-        return;
-      }
+      // Use Android's public Download directory directly
+      p = `/storage/emulated/0/Download/${item.name}`;
     } else {
       const selected = await save({
         defaultPath: lastSaveDir ? `${lastSaveDir.replace(/\/$/, "")}/${item.name}` : item.name,
@@ -1054,8 +1049,8 @@ export default function Browser() {
     try {
       let selectedDir: string | null = null;
       if (type() === 'android') {
-        selectedDir = await downloadDir();
-        toast.info(`Downloading files to Download folder`);
+        selectedDir = '/storage/emulated/0/Download';
+        toast.info(`Downloading files to public Download folder`);
       } else {
         // Ask user for a directory to save all files
         const res = await open({
