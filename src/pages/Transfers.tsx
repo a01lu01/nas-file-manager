@@ -85,64 +85,64 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
           <div className="text-sm text-muted-foreground">{t('transfers.no_transfers')}</div>
         ) : (
           <div className="space-y-2">
-            {tasks.map((t) => {
+            {tasks.map((task) => {
               const pct =
-                t.total && t.total > 0 ? Math.min(100, (t.transferred / t.total) * 100) : null;
+                task.total && task.total > 0 ? Math.min(100, (task.transferred / task.total) * 100) : null;
               return (
                 <div
-                  key={t.id}
+                  key={task.id}
                   className="rounded-xl border border-border-standard bg-surface p-3"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[14px] font-[510] text-foreground truncate flex items-center gap-2">
-                        {t.kind === "upload" ? (
+                        {task.kind === "upload" ? (
                           <Upload size={14} className="text-muted-foreground" />
                         ) : (
                           <Download size={14} className="text-muted-foreground" />
                         )}
-                        {t.fileName}
+                        {task.fileName}
                       </div>
                       <div className="text-[12px] text-muted-foreground truncate">
-                        {t.kind === "upload" ? t.localPath : t.remotePath}
+                        {task.kind === "upload" ? task.localPath : task.remotePath}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-[12px] text-muted-foreground whitespace-nowrap">
-                        {t.state === "queued" ? t('transfers.queued') :
-                         t.state === "running" ? t('transfers.running') :
-                         t.state === "paused" ? t('transfers.paused') :
-                         t.state === "done" ? t('transfers.done') :
-                         t.state === "error" ? t('transfers.error') :
-                         t.state === "canceled" ? t('transfers.canceled') : t.state}
+                        {task.state === "queued" ? t('transfers.queued') :
+                         task.state === "running" ? t('transfers.running') :
+                         task.state === "paused" ? t('transfers.paused') :
+                         task.state === "done" ? t('transfers.done') :
+                         task.state === "error" ? t('transfers.error') :
+                         task.state === "canceled" ? t('transfers.canceled') : task.state}
                       </div>
-                      {t.state === "running" && (
+                      {task.state === "running" && (
                         <button
-                          onClick={() => handlePause(t)}
+                          onClick={() => handlePause(task)}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Pause size={14} />
                         </button>
                       )}
-                      {t.state === "paused" && (
+                      {task.state === "paused" && (
                         <button
-                          onClick={() => handleResume(t)}
+                          onClick={() => handleResume(task)}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Play size={14} />
                         </button>
                       )}
-                      {t.state !== "done" && (
+                      {task.state !== "done" && (
                         <button
-                          onClick={() => handleCancel(t)}
+                          onClick={() => handleCancel(task)}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-destructive transition-colors"
                         >
                           <X size={14} />
                         </button>
                       )}
-                      {(t.state === "error" || t.state === "canceled") && (
+                      {(task.state === "error" || task.state === "canceled") && (
                         <button
-                          onClick={() => handleRetry(t)}
+                          onClick={() => handleRetry(task)}
                           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <RotateCw size={14} />
@@ -160,11 +160,11 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[12px] text-muted-foreground">
                       <div>
-                        {t.total
-                          ? `${(t.transferred / 1024 / 1024).toFixed(1)} / ${(t.total / 1024 / 1024).toFixed(1)} MB`
-                          : `${(t.transferred / 1024 / 1024).toFixed(1)} MB`}
+                        {task.total
+                          ? `${(task.transferred / 1024 / 1024).toFixed(1)} / ${(task.total / 1024 / 1024).toFixed(1)} MB`
+                          : `${(task.transferred / 1024 / 1024).toFixed(1)} MB`}
                       </div>
-                      <div className="truncate max-w-[60%]">{t.error ?? ""}</div>
+                      <div className="truncate max-w-[60%]">{task.error ?? ""}</div>
                     </div>
                   </div>
                 </div>
