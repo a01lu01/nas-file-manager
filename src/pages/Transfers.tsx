@@ -103,8 +103,10 @@ export default function Transfers({ embedded, onBack, onOpenSidebar }: Transfers
                         )}
                         {task.fileName}
                       </div>
-                      <div className="text-[12px] text-muted-foreground truncate">
+                      <div className="text-[12px] text-muted-foreground truncate" title={`${task.kind === "upload" ? task.localPath : task.remotePath} → ${task.kind === "upload" ? task.remotePath : task.localPath}`}>
                         {task.kind === "upload" ? task.localPath : task.remotePath}
+                        <span className="mx-1">→</span>
+                        {task.kind === "upload" ? task.remotePath : task.localPath}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

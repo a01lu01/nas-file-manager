@@ -64,7 +64,12 @@ export const useTransfersStore = create<TransfersState>()(
     }),
     {
       name: "nas-transfers-storage",
-      partialize: (s) => ({ lastSaveDir: s.lastSaveDir }),
+      partialize: (s) => ({
+        lastSaveDir: s.lastSaveDir,
+        tasks: s.tasks.map((t) =>
+          ["running", "queued"].includes(t.state) ? { ...t, state: "paused" as TransferState } : t
+        ),
+      }),
     }
   )
 );
