@@ -788,6 +788,12 @@ export default function Browser() {
 
   const handleUploadClick = async () => {
     if (!activeConnection) return;
+    
+    // On Android, the native file dialog returns content:// URIs that Rust cannot easily read directly.
+    // As a workaround, we could use a hidden file input element, but since our current upload logic 
+    // requires a local file path to be processed by Rust, we will continue using the native dialog
+    // and rely on the user having files in accessible locations, or we need a major rewrite of the upload system.
+    // For now, let's keep the existing flow but add a warning if it fails.
     try {
       const selected = await open({
         multiple: true,

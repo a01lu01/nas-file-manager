@@ -776,12 +776,29 @@ pub fn run() {
                         }
                         .ok_or_else(|| VfsError::Internal("Connection not found".to_string()))?;
 
+                        #[cfg(not(target_os = "android"))]
                         let mut file = tokio::fs::File::open(&req.local_path)
                             .await
                             .map_err(|e| {
                                 log::error!("Upload error: Failed to open local path: {} with error: {}", req.local_path, e);
                                 VfsError::Internal(format!("Failed to open file ({}): {}", req.local_path, e))
                             })?;
+                            
+                        #[cfg(target_os = "android")]
+                        let mut file = match tokio::fs::File::open(&req.local_path).await {
+                            Ok(f) => f,
+                            Err(e) => {
+                                log::warn!("Failed to open file normally: {}, attempting to use Android content resolver...", e);
+                                if req.local_path.starts_with("content://") {
+                                    // Here we should ideally use JNI to open the content resolver.
+                                    // However, without extensive JNI bindings, we can't easily read content:// URIs from Rust.
+                                    // A robust solution requires passing the file content from JS via IPC,
+                                    // or using a Tauri plugin designed to read content URIs.
+                                    return Err(VfsError::Internal("Cannot read Android content:// URIs directly from Rust. Please use the Web API to upload files on Android.".to_string()));
+                                }
+                                return Err(VfsError::Internal(format!("Failed to open file ({}): {}", req.local_path, e)));
+                            }
+                        };
                         
                         let file_size = file.metadata()
                             .await
