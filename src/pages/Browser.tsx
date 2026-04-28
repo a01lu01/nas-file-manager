@@ -1578,7 +1578,13 @@ export default function Browser() {
 
                               {openMenuPath === file.path && (
                                 <div
-                                  className="absolute right-0 top-8 mt-1 w-44 rounded-lg border border-border-standard bg-panel shadow-lg overflow-hidden z-50"
+                                  className="absolute top-8 w-44 rounded-lg border border-border-standard bg-panel shadow-lg overflow-hidden z-50"
+                                  style={{
+                                    // Make sure it doesn't flow out of the left/right screen edges
+                                    left: "max(50%, 88px)", // 88px is half of 44 (176px width)
+                                    right: "auto",
+                                    transform: "translateX(-50%)",
+                                  }}
                                   onClick={(e) => e.stopPropagation()}
                                   onMouseLeave={() => setOpenMenuPath(null)}
                                 >

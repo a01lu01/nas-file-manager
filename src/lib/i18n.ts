@@ -133,7 +133,7 @@ export const translations = {
     'browser.no_files': '未找到文件或目录',
     'browser.name': '名称',
     'browser.size': '大小',
-    'browser.date': '修改日期',
+    'browser.date': '日期',
     'browser.select': '选择',
     'browser.rename': '重命名',
     'browser.download': '下载',

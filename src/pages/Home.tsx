@@ -378,9 +378,9 @@ export default function Home() {
 
       {/* Add Connection Dialog Overlay */}
       {isDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface border border-border-standard rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border-standard">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface border-t sm:border border-border-standard rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border-standard shrink-0">
               <h2 className="text-lg font-semibold text-foreground">
                 {editingId ? t('home.edit_connection') : t('home.add_connection')}
               </h2>
@@ -402,7 +402,7 @@ export default function Home() {
                 <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleAddConnection} className="p-6 space-y-4">
+            <form onSubmit={handleAddConnection} className="p-6 space-y-4 overflow-y-auto">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">{t('home.name')}</label>
                 <input 
@@ -478,7 +478,7 @@ export default function Home() {
               </div>
               
 
-              <div className="pt-2">
+              <div className="pt-2 shrink-0">
                 <button 
                   type="submit"
                   className="w-full bg-foreground text-background font-medium rounded-lg py-2.5 hover:opacity-90 transition-opacity"
