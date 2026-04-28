@@ -453,8 +453,13 @@ function Lightbox({ file, url, allImages, onClose, onNavigate }: LightboxProps) 
   );
 }
 
+import Transfers from "@/pages/Transfers";
+import { useTranslation } from "@/lib/i18n";
+
 export default function Browser() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
+  const [currentView, setCurrentView] = useState<"files" | "transfers">("files");
   const [searchParams, setSearchParams] = useSearchParams();
   const { theme, setTheme } = useTheme();
   const activeConnection = useConnectionStore((state) => state.getActiveConnection());
@@ -675,6 +680,25 @@ export default function Browser() {
       renameInputRef.current.select();
     }
   }, [isRenameOpen]);
+
+  // 监听浏览器后退事件以关闭预览（支持 Android 物理返回键）
+  useEffect(() => {
+    const handlePopState = () => {
+      setPreviewFile((current) => {
+        if (current) {
+          return null; // 如果预览是打开的，后退时只关闭预览
+        }
+        return current;
+      });
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const handleClosePreview = () => {
+    // 触发浏览器的后退操作，由 popstate 监听器统一负责 setPreviewFile(null)
+    window.history.back();
+  };
 
   const getImagesInCurrentDir = () => {
     return displayedFiles.filter(f => {
@@ -1086,6 +1110,8 @@ export default function Browser() {
         } else {
           setPreviewFile({ item, url, type: "unknown" });
         }
+        // 压入历史记录以拦截移动端返回键
+        window.history.pushState({ isPreview: true }, "");
       } catch (err) {
         toast.error("获取预览失败: " + err);
       }
@@ -1107,7 +1133,7 @@ export default function Browser() {
   if (!activeConnection) return null;
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background relative overflow-hidden flex-1">
       {/* Titlebar */}
       <Titlebar title={activeConnection.name} showIcon={true} />
 
@@ -1125,30 +1151,31 @@ export default function Browser() {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}>
           <div className="p-4 flex-1">
-            <div className="text-[11px] font-[510] text-muted-foreground mb-3 px-2 uppercase tracking-widest">Locations</div>
+            <div className="text-[11px] font-[510] text-muted-foreground mb-3 px-2 uppercase tracking-widest">{t('browser.locations')}</div>
             <div className="space-y-0.5">
               <button 
                 onClick={() => {
+                  setCurrentView("files");
                   setPath("/");
                   setIsSidebarOpen(false);
                 }}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[14px] font-medium transition-colors ${currentPath === "/" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-ghost hover:text-foreground"}`}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[14px] font-medium transition-colors ${currentView === "files" && currentPath === "/" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-ghost hover:text-foreground"}`}
               >
                 <div className="flex items-center gap-2">
-                  <HardDrive size={16} className={currentPath === "/" ? "text-primary" : "text-muted-foreground"} />
+                  <HardDrive size={16} className={currentView === "files" && currentPath === "/" ? "text-primary" : "text-muted-foreground"} />
                   {activeConnection.name}
                 </div>
               </button>
               <button
                 onClick={() => {
-                  navigate("/transfers");
+                  setCurrentView("transfers");
                   setIsSidebarOpen(false);
                 }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[14px] font-medium transition-colors text-muted-foreground hover:bg-ghost hover:text-foreground"
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[14px] font-medium transition-colors ${currentView === "transfers" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-ghost hover:text-foreground"}`}
               >
                 <div className="flex items-center gap-2">
-                  <Download size={16} className="text-muted-foreground" />
-                  Transfers
+                  <Download size={16} className={currentView === "transfers" ? "text-primary" : "text-muted-foreground"} />
+                  {t('browser.transfers')}
                 </div>
               </button>
             </div>
@@ -1163,12 +1190,19 @@ export default function Browser() {
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[14px] font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             >
               <LogOut size={16} />
-              Disconnect
+              {t('browser.disconnect')}
             </button>
           </div>
         </div>
 
         {/* Main Content */}
+        {currentView === "transfers" ? (
+          <Transfers 
+            embedded 
+            onBack={() => setCurrentView("files")}
+            onOpenSidebar={() => setIsSidebarOpen(true)}
+          />
+        ) : (
         <div className="flex-1 flex flex-col bg-background min-w-0">
           {/* Toolbar - Responsive layout for narrow screens */}
           <div className="border-b border-border-standard bg-panel shrink-0 flex flex-col xl:flex-row xl:h-14">
@@ -1265,7 +1299,7 @@ export default function Browser() {
                   <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                   <input 
                     type="text" 
-                    placeholder="Search files..." 
+                    placeholder={t('browser.search')} 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="bg-ghost border border-border-standard rounded-md pl-8 pr-3 py-1.5 text-[13px] w-48 focus:outline-none focus:border-primary/50 text-foreground placeholder:text-muted-foreground/50 transition-all focus:w-64"
@@ -1277,9 +1311,9 @@ export default function Browser() {
                     onChange={(e) => setSortKey(e.target.value as "name" | "date" | "size")}
                     className="bg-transparent text-[13px] text-muted-foreground focus:outline-none cursor-pointer"
                   >
-                    <option value="name" className="bg-panel text-foreground">Name</option>
+                    <option value="name" className="bg-panel text-foreground">{t('browser.name')}</option>
                     <option value="date" className="bg-panel text-foreground">Date</option>
-                    <option value="size" className="bg-panel text-foreground">Size</option>
+                    <option value="size" className="bg-panel text-foreground">{t('browser.size')}</option>
                   </select>
                   <button
                     onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
@@ -1294,18 +1328,18 @@ export default function Browser() {
                     <button
                       onClick={handleUploadClick}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
-                      title="Upload files"
+                      title={t('browser.upload')}
                     >
                       <Upload size={14} />
-                      <span className="max-w-[92px] truncate">Upload</span>
+                      <span className="max-w-[92px] truncate">{t('browser.upload')}</span>
                     </button>
                     <button
                       onClick={handleNewFolder}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-[13px] text-muted-foreground hover:text-foreground hover:bg-surface transition-colors whitespace-nowrap shrink-0"
-                      title="New folder"
+                      title={t('browser.new_folder')}
                     >
                       <FolderPlus size={14} />
-                      <span className="max-w-[92px] truncate">New Folder</span>
+                      <span className="max-w-[92px] truncate">{t('browser.new_folder')}</span>
                     </button>
                   </>
                 )}
@@ -1338,7 +1372,7 @@ export default function Browser() {
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <input 
                   type="text" 
-                  placeholder="Search files..." 
+                  placeholder={t('browser.search')} 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-ghost border border-border-standard rounded-md pl-8 pr-3 py-1.5 text-[13px] focus:outline-none focus:border-primary/50 text-foreground placeholder:text-muted-foreground/50 transition-all"
@@ -1350,9 +1384,9 @@ export default function Browser() {
                   onChange={(e) => setSortKey(e.target.value as "name" | "date" | "size")}
                   className="bg-transparent text-[13px] text-muted-foreground focus:outline-none cursor-pointer w-16"
                 >
-                  <option value="name" className="bg-panel text-foreground">Name</option>
+                  <option value="name" className="bg-panel text-foreground">{t('browser.name')}</option>
                   <option value="date" className="bg-panel text-foreground">Date</option>
-                  <option value="size" className="bg-panel text-foreground">Size</option>
+                  <option value="size" className="bg-panel text-foreground">{t('browser.size')}</option>
                 </select>
                 <button
                   onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
@@ -1364,14 +1398,14 @@ export default function Browser() {
               <button
                 onClick={handleUploadClick}
                 className="p-1.5 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors shrink-0"
-                title="Upload files"
+                title={t('browser.upload')}
               >
                 <Upload size={14} />
               </button>
               <button
                 onClick={handleNewFolder}
                 className="p-1.5 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors shrink-0"
-                title="New folder"
+                title={t('browser.new_folder')}
               >
                 <FolderPlus size={14} />
               </button>
@@ -1403,7 +1437,7 @@ export default function Browser() {
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                 <Loader2 size={24} className="text-primary animate-spin" />
-                <span className="text-sm font-medium">Loading directory...</span>
+                <span className="text-sm font-medium">{t('browser.loading')}</span>
               </div>
             ) : error ? (
               <div className="flex items-center justify-center h-full text-destructive text-sm bg-destructive/10 p-4 rounded-lg mx-4">
@@ -1414,8 +1448,8 @@ export default function Browser() {
                 <div className="w-16 h-16 rounded-full bg-ghost border border-border-standard flex items-center justify-center mb-4">
                   <Folder size={24} className="text-muted-foreground/50" />
                 </div>
-                <p className="text-[15px] font-[510] text-foreground">{searchQuery.trim() ? "No matches" : "This folder is empty"}</p>
-                <p className="text-sm mt-1">{searchQuery.trim() ? "Try a different search term" : "No files or directories found"}</p>
+                <p className="text-[15px] font-[510] text-foreground">{searchQuery.trim() ? t('browser.no_matches') : t('browser.empty')}</p>
+                <p className="text-sm mt-1">{searchQuery.trim() ? t('browser.try_different') : t('browser.no_files')}</p>
               </div>
             ) : viewMode === "grid" ? (
               <div style={{ height: gridVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
@@ -1586,9 +1620,9 @@ export default function Browser() {
               <div className="grid grid-cols-1 gap-0.5">
                 <div className="grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_1fr_120px_150px_40px] gap-4 px-3 py-2 text-[12px] font-[510] text-muted-foreground border-b border-border-standard mb-2 uppercase tracking-wider">
                   <div className="w-5"></div>
-                  <div className="min-w-0 truncate">Name</div>
-                  <div className="text-right hidden md:block">Size</div>
-                  <div className="hidden md:block">Date Modified</div>
+                  <div className="min-w-0 truncate">{t('browser.name')}</div>
+                  <div className="text-right hidden md:block">{t('browser.size')}</div>
+                  <div className="hidden md:block">{t('browser.date')}</div>
                   <div></div>
                 </div>
                 {displayedFiles.map((file, idx) => {
@@ -1695,6 +1729,7 @@ export default function Browser() {
             )}
           </div>
         </div>
+        )}
       </div>
       
       {/* Selection Mode Floating Action Bar */}
@@ -1719,7 +1754,7 @@ export default function Browser() {
                 onClick={selectedPaths.size === displayedFiles.length ? clearSelection : selectAll}
                 className="px-3 py-1.5 text-[13px] font-medium text-foreground hover:bg-surface rounded-lg transition-colors"
               >
-                {selectedPaths.size === displayedFiles.length ? "Deselect All" : "Select All"}
+                {selectedPaths.size === displayedFiles.length ? t('browser.deselect_all') : t('browser.select_all')}
               </button>
               
               <div className="w-[1px] h-4 bg-border-standard mx-1"></div>
@@ -1731,7 +1766,7 @@ export default function Browser() {
                   return f && !f.is_dir;
                 })}
                 className="p-2 text-foreground hover:bg-surface rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Download Selected"
+                title={t('browser.download')}
               >
                 <Download size={18} />
               </button>
@@ -1740,7 +1775,7 @@ export default function Browser() {
                 onClick={() => setIsBatchDeleteOpen(true)}
                 disabled={selectedPaths.size === 0}
                 className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Delete Selected"
+                title={t('browser.delete_selected')}
               >
                 <Trash2 size={18} />
               </button>
@@ -1792,7 +1827,7 @@ export default function Browser() {
             className="w-[380px] rounded-xl bg-panel border border-border-standard shadow-lg p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[14px] font-[510] text-foreground mb-3">New Folder</div>
+            <div className="text-[14px] font-[510] text-foreground mb-3">{t('browser.new_folder')}</div>
             <input
               autoFocus
               value={newFolderName}
@@ -1832,7 +1867,7 @@ export default function Browser() {
             className="w-[420px] rounded-xl bg-panel border border-border-standard shadow-lg p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[14px] font-[510] text-foreground mb-1">Rename</div>
+            <div className="text-[14px] font-[510] text-foreground mb-1">{t('browser.rename')}</div>
             <div className="text-[12px] text-muted-foreground mb-3 truncate">{renameTarget.name}</div>
             <input
               autoFocus
@@ -1879,7 +1914,7 @@ export default function Browser() {
             className="w-[420px] rounded-xl bg-panel border border-border-standard shadow-lg p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[14px] font-[510] text-foreground mb-1">Delete</div>
+            <div className="text-[14px] font-[510] text-foreground mb-1">{t('browser.delete')}</div>
             <div className="text-[12px] text-muted-foreground mb-4 truncate">Delete “{deleteTarget.name}”?</div>
             <div className="flex items-center justify-end gap-2">
               <button
@@ -1908,7 +1943,7 @@ export default function Browser() {
       const ext = f.name.split('.').pop()?.toLowerCase() || '';
       return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
     })}
-    onClose={() => setPreviewFile(null)}
+    onClose={handleClosePreview}
     onNavigate={async (newFile) => {
       if (!activeConnection) return;
       const newUrl = await getProxyUrl(activeConnection.id, newFile.path);
@@ -1929,7 +1964,7 @@ export default function Browser() {
           
           {/* 当不是视频时，由这一层拦截背景点击来关闭预览 */}
           {previewFile.type !== "video" && (
-            <div className="absolute inset-0" onClick={() => setPreviewFile(null)} />
+            <div className="absolute inset-0" onClick={handleClosePreview} />
           )}
           
           <div className="relative h-14 flex items-center justify-between px-4 text-white shrink-0 z-10" onClick={e => e.stopPropagation()}>
@@ -1943,7 +1978,7 @@ export default function Browser() {
                 <Download size={18} />
               </button>
               <button
-                onClick={() => setPreviewFile(null)}
+                onClick={handleClosePreview}
                 className="p-2 rounded-full bg-black/20 hover:bg-black/50 backdrop-blur-md transition-colors border border-white/10"
                 title="Close"
               >
@@ -1967,7 +2002,7 @@ export default function Browser() {
                   <File size={32} className="text-muted-foreground" />
                 </div>
                 <div>
-                  <h3 className="text-foreground font-medium mb-1">Preview not available</h3>
+                  <h3 className="text-foreground font-medium mb-1">{t('browser.preview_not_available')}</h3>
                   <p className="text-sm text-muted-foreground">
                     This file type cannot be previewed in the browser. You can download it to open it locally.
                   </p>

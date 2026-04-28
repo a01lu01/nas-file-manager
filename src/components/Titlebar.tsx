@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type } from "@tauri-apps/plugin-os";
-import { Moon, Sun, HardDrive, Minus, Square, X } from "lucide-react";
+import { Moon, Sun, HardDrive, Minus, Square, X, Languages } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useTranslation, useI18nStore } from "@/lib/i18n";
 
 interface TitlebarProps {
   title?: string;
@@ -11,6 +12,8 @@ interface TitlebarProps {
 
 export function Titlebar({ title = "NAS File Manager", showIcon = false }: TitlebarProps) {
   const { theme, setTheme } = useTheme();
+  const { t, language } = useTranslation();
+  const setLanguage = useI18nStore((state) => state.setLanguage);
   const [osType, setOsType] = useState<string>("macos");
 
   useEffect(() => {
@@ -74,6 +77,14 @@ export function Titlebar({ title = "NAS File Manager", showIcon = false }: Title
 
       {/* Right section: Theme toggle and Windows controls */}
       <div className="relative z-10 flex items-center gap-2 h-full">
+        <button
+          onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
+          className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors titlebar-button flex items-center justify-center"
+          title={t('titlebar.language')}
+        >
+          <Languages size={14} />
+          <span className="ml-1 text-[10px] font-bold uppercase">{language}</span>
+        </button>
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors titlebar-button"

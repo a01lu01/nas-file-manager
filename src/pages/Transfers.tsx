@@ -1,11 +1,19 @@
 import { useTransfersStore } from "@/lib/transfers-store";
-import { ArrowLeft, Download, Pause, Play, RotateCw, X, Upload } from "lucide-react";
+import { ArrowLeft, Download, Pause, Play, RotateCw, X, Upload, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cancelDownload, pauseDownload, resumeDownload, retryDownload, cancelUpload, pauseUpload, resumeUpload, retryUpload } from "@/lib/tauri-api";
 import { Titlebar } from "@/components/Titlebar";
+import { useTranslation } from "@/lib/i18n";
 
-export default function Transfers() {
+interface TransfersProps {
+  embedded?: boolean;
+  onBack?: () => void;
+  onOpenSidebar?: () => void;
+}
+
+export default function Transfers({ embedded, onBack, onOpenSidebar }: TransfersProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const tasks = useTransfersStore((s) => s.tasks);
   const clearFinished = useTransfersStore((s) => s.clearFinished);
   const patchTask = useTransfersStore((s) => s.patchTask);
@@ -39,12 +47,32 @@ export default function Transfers() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background">
-      <Titlebar title="Transfer Manager" showIcon={false} />
+    <div className={embedded ? "flex-1 w-full flex flex-col bg-background relative" : "flex-1 w-full flex flex-col bg-background relative overflow-hidden"}>
+      {!embedded && <Titlebar title={t('transfers.title')} showIcon={false} />}
+      
+      {embedded && (
+        <div className="h-14 border-b border-border-standard bg-surface/50 backdrop-blur-md flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={onOpenSidebar}
+              className="md:hidden p-1.5 rounded-md hover:bg-ghost text-muted-foreground transition-colors shrink-0"
+            >
+              <Menu size={18} />
+            </button>
+            <span className="text-[14px] font-medium text-foreground">{t('transfers.title')}</span>
+          </div>
+          <button 
+            onClick={onBack}
+            className="p-1.5 rounded-md hover:bg-ghost text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto p-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-[510] text-foreground">Transfers</div>
+          <div className="text-sm font-[510] text-foreground">{t('transfers.title')}</div>
           <button
             onClick={clearFinished}
             className="text-xs px-2.5 py-1.5 rounded-md bg-ghost border border-border-standard text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
@@ -54,7 +82,7 @@ export default function Transfers() {
         </div>
 
         {tasks.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No transfers</div>
+          <div className="text-sm text-muted-foreground">{t('transfers.no_transfers')}</div>
         ) : (
           <div className="space-y-2">
             {tasks.map((t) => {

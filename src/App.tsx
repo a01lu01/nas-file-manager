@@ -78,7 +78,15 @@ export default function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="nas-theme" attribute="class">
       <TransferListeners />
-      <div className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/30">
+      <div 
+        className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/30 flex flex-col"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
+        }}
+      >
         <Router>
           <Routes>
             <Route path="/" element={<Home />} />

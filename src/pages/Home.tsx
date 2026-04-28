@@ -5,8 +5,10 @@ import { useNavigate } from "react-router-dom";
 import { useConnectionStore } from "@/lib/store";
 import { connectServer, discoverNas, DiscoveredNas, loadSavedConnections, saveSavedConnections } from "@/lib/tauri-api";
 import { Titlebar } from "@/components/Titlebar";
+import { useTranslation } from "@/lib/i18n";
 
 export default function Home() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const connections = useConnectionStore((state) => state.connections);
@@ -168,7 +170,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background relative overflow-hidden flex-1">
       {/* Custom Titlebar Region */}
       <Titlebar />
 
@@ -186,10 +188,10 @@ export default function Home() {
               </div>
             </div>
             <h1 className="text-3xl font-[510] tracking-tight-xl text-foreground">
-              Connect to Storage
+              {t('home.title')}
             </h1>
             <p className="text-[15px] text-muted-foreground text-center max-w-[280px] leading-relaxed mb-8">
-              Add a new NAS connection via SMB or WebDAV to access your files.
+              {t('home.subtitle')}
             </p>
           </div>
 
@@ -202,14 +204,14 @@ export default function Home() {
                 className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
               >
                 {isDiscovering ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
-                {isDiscovering ? "Scanning network..." : "Discover NAS"}
+                {isDiscovering ? t('home.scanning') : t('home.discover')}
               </button>
             </div>
 
             {/* Discovered Devices List */}
             {discoveredDevices.length > 0 && (
               <div className="mb-4 bg-panel border border-border-standard rounded-xl p-2 animate-in fade-in slide-in-from-top-2">
-                <div className="text-xs text-muted-foreground px-2 py-1 mb-1 font-medium">Found Devices</div>
+                <div className="text-xs text-muted-foreground px-2 py-1 mb-1 font-medium">{t('home.found_devices')}</div>
                 <div className="space-y-1">
                   {discoveredDevices.map((dev, idx) => (
                     <div 
@@ -245,7 +247,7 @@ export default function Home() {
 
             {connections.length === 0 ? (
                <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border-standard rounded-xl">
-                 No connections yet. Click below to add one.
+                 {t('home.no_connections')}
                </div>
             ) : (
               connections.map((conn) => (
@@ -367,7 +369,7 @@ export default function Home() {
                 <Plus size={16} />
               </div>
               <span className="text-[15px] font-[510] text-muted-foreground group-hover:text-foreground transition-colors">
-                Add New Connection
+                {t('home.add_connection')}
               </span>
             </button>
           </div>
@@ -380,7 +382,7 @@ export default function Home() {
           <div className="bg-surface border border-border-standard rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border-standard">
               <h2 className="text-lg font-semibold text-foreground">
-                {editingId ? "Edit Connection" : "New Connection"}
+                {editingId ? t('home.edit_connection') : t('home.add_connection')}
               </h2>
               <button 
                 onClick={() => {
@@ -402,7 +404,7 @@ export default function Home() {
             </div>
             <form onSubmit={handleAddConnection} className="p-6 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Name</label>
+                <label className="text-sm font-medium text-foreground">{t('home.name')}</label>
                 <input 
                   autoFocus
                   type="text" 
@@ -425,7 +427,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">URL / Path</label>
+                <label className="text-sm font-medium text-foreground">{t('home.url')}</label>
                 <input 
                   type="text" 
                   value={formData.url}
@@ -436,7 +438,7 @@ export default function Home() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Username</label>
+                  <label className="text-sm font-medium text-foreground">{t('home.username')}</label>
                   <input 
                     type="text" 
                     value={formData.user}
@@ -446,7 +448,7 @@ export default function Home() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Password</label>
+                  <label className="text-sm font-medium text-foreground">{t('home.password')}</label>
                   <div className="relative">
                     <input 
                       type={showPassword ? "text" : "password"} 
@@ -478,7 +480,7 @@ export default function Home() {
                   type="submit"
                   className="w-full bg-foreground text-background font-medium rounded-lg py-2.5 hover:opacity-90 transition-opacity"
                 >
-                  {editingId ? "Save Changes" : "Save Connection"}
+                  {editingId ? t('home.save_changes') : t('home.save_connection')}
                 </button>
               </div>
             </form>
