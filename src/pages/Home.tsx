@@ -457,11 +457,14 @@ export default function Home() {
                       placeholder="Optional" 
                       className="w-full bg-background border border-border-standard rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:border-primary/50 transition-colors"
                     />
-                    <button
+                    <button 
                       type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      disabled={formData.pass === "********"}
-                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-colors ${
+                      onClick={() => {
+                        if (formData.pass !== "********") {
+                          setShowPassword(!showPassword);
+                        }
+                      }}
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 p-2.5 rounded-md transition-colors z-10 ${
                         formData.pass === "********" 
                           ? "text-muted-foreground/30 cursor-not-allowed" 
                           : "hover:bg-ghost text-muted-foreground hover:text-foreground"

@@ -5,6 +5,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Folder, File, FileImage, FileVideo, FileAudio, FileArchive, FileText, ChevronRight, HardDrive, Search, LayoutGrid, List, ArrowLeft, MoreHorizontal, LogOut, Sun, Moon, Loader2, ArrowUpDown, FolderPlus, Trash2, Pencil, Download, X, ChevronLeft, Play, Pause, Volume2, VolumeX, Maximize, Menu, CheckCircle2, Circle, AlertCircle, Upload } from "lucide-react";
 import { useTheme } from "next-themes";
 import { save, open } from "@tauri-apps/plugin-dialog";
+import { type } from "@tauri-apps/plugin-os";
+import { downloadDir } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
 import { useTransfersStore } from "@/lib/transfers-store";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -907,14 +910,25 @@ export default function Browser() {
     if (!activeConnection) return;
     if (item.is_dir) return;
 
-    const selected = await save({
-      defaultPath: lastSaveDir ? `${lastSaveDir.replace(/\/$/, "")}/${item.name}` : item.name,
-    });
-    if (!selected) return;
-
-    const p = String(selected);
-    const lastSlash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-    if (lastSlash > 0) setLastSaveDir(p.slice(0, lastSlash));
+    let p: string;
+    if (type() === 'android') {
+      try {
+        const dlDir = await downloadDir();
+        p = await join(dlDir, item.name);
+      } catch (err) {
+        toast.error("Failed to get download directory on Android");
+        return;
+      }
+    } else {
+      const selected = await save({
+        defaultPath: lastSaveDir ? `${lastSaveDir.replace(/\/$/, "")}/${item.name}` : item.name,
+      });
+      if (!selected) return;
+      
+      p = String(selected);
+      const lastSlash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+      if (lastSlash > 0) setLastSaveDir(p.slice(0, lastSlash));
+    }
 
     const downloadId = `dl_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     upsertTask({
@@ -1030,22 +1044,30 @@ export default function Browser() {
     }
     
     try {
-      // Ask user for a directory to save all files
-      const selectedDir = await open({
-        directory: true,
-        multiple: false,
-        defaultPath: lastSaveDir || undefined,
-        title: "Select Directory to Save Files"
-      });
+      let selectedDir: string | null = null;
+      if (type() === 'android') {
+        selectedDir = await downloadDir();
+      } else {
+        // Ask user for a directory to save all files
+        const res = await open({
+          directory: true,
+          multiple: false,
+          defaultPath: lastSaveDir || undefined,
+          title: "Select Directory to Save Files"
+        });
+        if (res && typeof res === 'string') {
+          selectedDir = res;
+        }
+      }
       
-      if (!selectedDir || typeof selectedDir !== 'string') return;
+      if (!selectedDir) return;
       
       setLastSaveDir(selectedDir);
       
       let startedCount = 0;
       
       for (const file of filesToDownload) {
-        const targetPath = `${selectedDir.replace(/\/$/, "")}/${file.name}`;
+        const targetPath = await join(selectedDir, file.name);
         
         upsertTask({
           id: `${activeConnection.id}-${file.path}`,
@@ -1312,7 +1334,7 @@ export default function Browser() {
                     className="bg-transparent text-[13px] text-muted-foreground focus:outline-none cursor-pointer"
                   >
                     <option value="name" className="bg-panel text-foreground">{t('browser.name')}</option>
-                    <option value="date" className="bg-panel text-foreground">Date</option>
+                    <option value="date" className="bg-panel text-foreground">{t('browser.date')}</option>
                     <option value="size" className="bg-panel text-foreground">{t('browser.size')}</option>
                   </select>
                   <button
@@ -1385,7 +1407,7 @@ export default function Browser() {
                   className="bg-transparent text-[13px] text-muted-foreground focus:outline-none cursor-pointer w-16"
                 >
                   <option value="name" className="bg-panel text-foreground">{t('browser.name')}</option>
-                  <option value="date" className="bg-panel text-foreground">Date</option>
+                  <option value="date" className="bg-panel text-foreground">{t('browser.date')}</option>
                   <option value="size" className="bg-panel text-foreground">{t('browser.size')}</option>
                 </select>
                 <button
@@ -1487,7 +1509,7 @@ export default function Browser() {
                       onPointerUp={handleItemPointerUpOrLeave}
                       onPointerCancel={handleItemPointerUpOrLeave}
                       onPointerLeave={handleItemPointerUpOrLeave}
-                      className="group cursor-pointer flex flex-col items-center select-none relative"
+                      className={`group cursor-pointer flex flex-col items-center select-none relative ${openMenuPath === file.path ? 'z-20' : ''}`}
                     >
                       <div className={`w-full aspect-square bg-surface rounded-lg overflow-hidden border transition-all relative mb-2 shadow-sm flex items-center justify-center ${
                         isSelected ? "border-primary ring-2 ring-primary scale-95" : "border-transparent group-hover:border-primary/50"
